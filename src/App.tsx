@@ -158,30 +158,52 @@ export default function SLTApp() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center gap-1.5 text-sm">
-          <div className="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center text-xs font-bold mr-2">Ask Navera</div>
-          {crumbs.map((b,i) => (
-            <span key={i} className="flex items-center gap-1.5">
-              {i>0 && <span className="text-gray-300 text-xs">›</span>}
-              {b.a ? <button onClick={b.a} className="text-indigo-600 hover:underline text-sm">{b.l}</button>
-                   : <span className="text-gray-700 font-medium text-sm">{b.l}</span>}
+return (
+  <div className="min-h-screen bg-gray-100 flex flex-col">
+    {/* Top bar */}
+    <header className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <div className="flex items-center gap-2 text-sm min-w-0">
+        <div className="mr-2 flex items-center gap-2 shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
+            N
+          </div>
+          <span className="text-sm font-semibold text-gray-800 tracking-tight whitespace-nowrap">
+            Ask Navera
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto">
+          {crumbs.map((b, i) => (
+            <span key={i} className="flex items-center gap-1.5 shrink-0">
+              {i > 0 && <span className="text-gray-300 text-xs">›</span>}
+              {b.a ? (
+                <button onClick={b.a} className="text-indigo-600 hover:underline text-sm">
+                  {b.l}
+                </button>
+              ) : (
+                <span className="text-gray-700 font-medium text-sm">{b.l}</span>
+              )}
             </span>
           ))}
         </div>
-        <div className="flex gap-2">
-          {actions.map((a,i) => (
-            <button key={i} onClick={a.onClick}
-              className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
-                a.primary ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                           : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
-              {a.l}
-            </button>
-          ))}
-        </div>
-      </header>
+      </div>
+
+      <div className="flex gap-2 shrink-0">
+        {actions.map((a, i) => (
+          <button
+            key={i}
+            onClick={a.onClick}
+            className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
+              a.primary
+                ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            {a.l}
+          </button>
+        ))}
+      </div>
+    </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar */}

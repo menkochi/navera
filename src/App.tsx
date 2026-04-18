@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom"
 import AppDashboard from "./pages/AppDashboard"
 import LoginPage from "./pages/LoginPage"
 import ProtectedRoute from "./components/ProtectedRoute"
@@ -11,12 +11,12 @@ function LandingPage() {
         <p className="mt-4 text-lg text-gray-600">
           Speech and language support, organised beautifully.
         </p>
-        <a
-          href="/login"
+        <Link
+          to="/login"
           className="inline-block mt-8 bg-indigo-600 text-white px-5 py-3 rounded-xl font-medium hover:bg-indigo-700"
         >
           Log in
-        </a>
+        </Link>
       </div>
     </div>
   )

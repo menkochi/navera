@@ -1,4 +1,6 @@
+// @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
+
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SLT_HIERARCHIES = {

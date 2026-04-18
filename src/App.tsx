@@ -163,9 +163,6 @@ export default function SLTApp() {
     <header className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
       <div className="flex items-center gap-2 text-sm min-w-0">
         <div className="mr-2 flex items-center gap-2 shrink-0">
-          <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
-            N
-          </div>
           <span className="text-sm font-semibold text-gray-800 tracking-tight whitespace-nowrap">
             Ask Navera
           </span>

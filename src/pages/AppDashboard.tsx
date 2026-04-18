@@ -1,6 +1,9 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
+import { supabase } from "../lib/supabase";
 // ── Constants ─────────────────────────────────────────────────────────────────
+
 const SLT_HIERARCHIES = {
   concepts: { label: "Concepts & Spatial Language", levels: [["in","on","under","next to"],["in front","behind","beside","between"],["all but one","either/or","first/last","before/after"],["neither/nor","unless","although","when you do this, I do that"],["despite","however","therefore","consequently"]] },
   phonology: { label: "Phonology & Speech Sounds", levels: [["environmental sounds","animal sounds","syllable clapping"],["initial sounds awareness","rhyming","alliteration"],["phoneme blending CVC words","phoneme segmentation","initial phoneme deletion"],["consonant clusters /s/ blends","consonant clusters without /s/","final consonant deletion"],["medial phoneme manipulation","complex word structures","multisyllabic words"]] },
@@ -86,15 +89,34 @@ function StatTile({ label, value, color }) {
   );
 }
 export default function AppDashboard() {
+
   const [children, setChildren] = useState([]);
+
   const [view, setView] = useState("dashboard");
+
   const [selectedId, setSelectedId] = useState(null);
+
   const [section, setSection] = useState("core");
+
   const [pendingQueue, setPendingQueue] = useState([]);
+
   const [toast, setToast] = useState(null);
+
   const [loading, setLoading] = useState(false);
+
   const [importModal, setImportModal] = useState(false);
+
   const [addModal, setAddModal] = useState(false);
+
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+
+    await supabase.auth.signOut();
+
+    navigate("/login");
+
+  }
 
   useEffect(() => {
     (async () => {
@@ -181,20 +203,46 @@ export default function AppDashboard() {
       </div>
 
       <div className="flex gap-2 shrink-0">
-        {actions.map((a, i) => (
-          <button
-            key={i}
-            onClick={a.onClick}
-            className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
-              a.primary
-                ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            {a.l}
-          </button>
-        ))}
-      </div>
+
+  {actions.map((a, i) => (
+
+    <button
+
+      key={i}
+
+      onClick={a.onClick}
+
+      className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
+
+        a.primary
+
+          ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+
+          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+
+      }`}
+
+    >
+
+      {a.l}
+
+    </button>
+
+  ))}
+
+  <button
+
+    onClick={handleLogout}
+
+    className="px-3 py-1.5 rounded border text-xs font-medium bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+
+  >
+
+    Logout
+
+  </button>
+
+</div>
     </header>
 
       <div className="flex flex-1 overflow-hidden">

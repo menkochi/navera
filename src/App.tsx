@@ -162,7 +162,7 @@ export default function SLTApp() {
       {/* Top bar */}
       <header className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-1.5 text-sm">
-          <div className="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center text-xs font-bold mr-2">SLT</div>
+          <div className="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center text-xs font-bold mr-2">Ask Navera</div>
           {crumbs.map((b,i) => (
             <span key={i} className="flex items-center gap-1.5">
               {i>0 && <span className="text-gray-300 text-xs">›</span>}

@@ -36,7 +36,7 @@ export default function LoginPage() {
         className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4"
       >
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Log in to Ask Navera</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Log in to Ask Naveraaaaa</h1>
           <p className="text-sm text-gray-500 mt-1">Private access for therapists only.</p>
         </div>
 

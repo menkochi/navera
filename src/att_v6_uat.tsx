@@ -1139,7 +1139,9 @@ function TargetedSection({ child, updateChild, showToast, setSection }) {
 }
 
 // ── EHCP Tracker Card ─────────────────────────────────────────────────────────
-function EhcpTrackerCard({ child, updateChild, showToast, totalHours, pct }) {
+function EhcpTrackerCard({ child, updateChild, showToast }) {
+  const totalHours = child.sessionsLogged.filter(s => s.ehcp_session).reduce((s, sess) => s + sess.duration, 0) / 60;
+  const pct = child.ehcpHours > 0 ? Math.min(100, (totalHours / child.ehcpHours) * 100) : 0;
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1210,13 +1212,11 @@ function EhcpTrackerCard({ child, updateChild, showToast, totalHours, pct }) {
 
 // ── Specialist ────────────────────────────────────────────────────────────────
 function SpecialistSection({ child, updateChild, showToast, setSection }) {
-  const totalHours = child.sessionsLogged.filter(s => s.ehcp_session).reduce((s, sess) => s + sess.duration, 0) / 60;
-  const pct = child.ehcp && child.ehcpHours > 0 ? Math.min(100, (totalHours / child.ehcpHours) * 100) : 0;
   return (
     <div className="space-y-4">
       <ChangeTierCard child={child} updateChild={updateChild} showToast={showToast} setSection={setSection} />
       {child.ehcp && (
-        <EhcpTrackerCard child={child} updateChild={updateChild} showToast={showToast} totalHours={totalHours} pct={pct} />
+        <EhcpTrackerCard child={child} updateChild={updateChild} showToast={showToast} />
       )}
       <TargetCard level="specialist" child={child} updateChild={updateChild} showToast={showToast} />
       <TargetCard level="targeted" child={child} updateChild={updateChild} showToast={showToast} />

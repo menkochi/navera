@@ -928,7 +928,7 @@ function SLProfileSection({ child }) {
                       <li key={t.id} className="flex items-start gap-2.5 px-3 py-2 rounded-xl text-sm"
                         style={{ background: "#FDFAF7" }}>
                         <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${TC[tier].dot}`} />
-                        <span className="text-gray-700 font-medium leading-snug">{t.text}</span>
+                        <span className="text-gray-700 font-medium leading-snug whitespace-pre-wrap">{t.text}</span>
                       </li>
                     ))}
                   </ul>

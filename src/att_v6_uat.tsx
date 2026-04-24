@@ -948,14 +948,14 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
   const [editingId, setEditingId] = useState(null);
   const [editVal, setEditVal] = useState("");
 
-  const add = () => { if (!val.trim()) return; onAdd(val.trim()); setVal(""); };
+  const add = () => { if (!val.trim()) return; onAdd(val); setVal(""); };
   const startEdit = (t) => { setEditingId(t.id); setEditVal(t.text); };
   const cancelEdit = () => { setEditingId(null); setEditVal(""); };
 
   // Bug 5 — async so the edit form stays open until confirm resolves
   const saveEdit = async () => {
     if (!editVal.trim()) return;
-    await onEdit(editingId, editVal.trim());
+    await onEdit(editingId, editVal);
     cancelEdit();
   };
 

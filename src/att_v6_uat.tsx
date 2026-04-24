@@ -97,6 +97,7 @@ async function insertSession(childId, session) {
       duration: session.duration,
       type: session.type,
       notes: session.notes || null,
+      ehcp_session: session.ehcp_session ?? false,
     }),
   });
 }
@@ -787,7 +788,7 @@ function ProfileSidebar({ section, setSection, child, onBack }) {
 // ── Child Profile ─────────────────────────────────────────────────────────────
 function ChildProfile({ child, section, setSection, updateChild, showToast }) {
   const totalTargets = [...child.currentTargets.universal, ...child.currentTargets.targeted, ...child.currentTargets.specialist].length;
-  const totalHours = child.sessionsLogged.reduce((s, sess) => s + sess.duration, 0) / 60;
+  const totalHours = child.sessionsLogged.filter(s => s.ehcp_session).reduce((s, sess) => s + sess.duration, 0) / 60;
   const ehcpPct = child.ehcp && child.ehcpHours > 0
     ? Math.min(100, Math.round((totalHours / child.ehcpHours) * 100)) : null;
 
@@ -1137,33 +1138,85 @@ function TargetedSection({ child, updateChild, showToast, setSection }) {
   );
 }
 
+// ── EHCP Tracker Card ─────────────────────────────────────────────────────────
+function EhcpTrackerCard({ child, updateChild, showToast, totalHours, pct }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => { setVal(child.ehcpHours || ""); setEditing(true); };
+  const cancel = () => { setEditing(false); setSaving(false); };
+
+  const save = async () => {
+    const hrs = +val;
+    if (!hrs || hrs <= 0 || !Number.isFinite(hrs)) {
+      showToast("Please enter a valid number of hours", "error"); return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("caseload_terms_uat")
+        .update({ ehcp_hours: hrs })
+        .eq("id", child.supabaseTermId);
+      if (error) throw new Error(error.message);
+      updateChild(child.id, () => ({ ehcpHours: hrs }));
+      setEditing(false);
+      showToast("EHCP hours updated ✓");
+    } catch (err) { showToast(err.message || "Something went wrong", "error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Card accent="bg-violet-500">
+      <SectionLabel color="text-violet-700">EHCP Hours Tracker</SectionLabel>
+      <div className="flex gap-8 mb-4 items-end">
+        <div>
+          <p className="text-2xl font-bold text-gray-800" style={FH}>{totalHours.toFixed(1)}h</p>
+          <p className="text-xs text-gray-400 mt-0.5">Delivered</p>
+        </div>
+        <div>
+          {editing ? (
+            <div className="flex items-center gap-1">
+              <input type="number" value={val} min="1" autoFocus
+                onChange={e => setVal(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+                className="w-20 border-b-2 border-violet-400 text-2xl font-bold text-gray-800 bg-transparent outline-none text-center"
+                style={FH} />
+              <span className="text-2xl font-bold text-gray-800" style={FH}>h</span>
+              <button onClick={save} disabled={saving} className="text-xs font-semibold px-2 py-1 rounded-lg text-white ml-1 disabled:opacity-50" style={{ background: "#6D28D9" }}>{saving ? "…" : "✓"}</button>
+              <button onClick={cancel} disabled={saving} className="text-xs font-semibold px-2 py-1 rounded-lg text-gray-500 bg-gray-100 disabled:opacity-50">✕</button>
+            </div>
+          ) : (
+            <button onClick={startEdit} className="group text-left">
+              <p className="text-2xl font-bold text-gray-800 group-hover:text-violet-600 transition-colors" style={FH}>
+                {child.ehcpHours.toFixed(0)}h <span className="text-sm font-normal text-gray-300 group-hover:text-violet-400">✎</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">Allocated</p>
+            </button>
+          )}
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-gray-800" style={FH}>{(child.ehcpHours - totalHours).toFixed(1)}h</p>
+          <p className="text-xs text-gray-400 mt-0.5">Remaining</p>
+        </div>
+      </div>
+      <div className="h-3 rounded-full overflow-hidden" style={{ background: "#F5EFE8" }}>
+        <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-gray-400 mt-1.5">{pct.toFixed(0)}% of annual allocation used</p>
+    </Card>
+  );
+}
+
 // ── Specialist ────────────────────────────────────────────────────────────────
 function SpecialistSection({ child, updateChild, showToast, setSection }) {
-  const totalHours = child.sessionsLogged.reduce((s, sess) => s + sess.duration, 0) / 60;
+  const totalHours = child.sessionsLogged.filter(s => s.ehcp_session).reduce((s, sess) => s + sess.duration, 0) / 60;
   const pct = child.ehcp && child.ehcpHours > 0 ? Math.min(100, (totalHours / child.ehcpHours) * 100) : 0;
   return (
     <div className="space-y-4">
       <ChangeTierCard child={child} updateChild={updateChild} showToast={showToast} setSection={setSection} />
       {child.ehcp && (
-        <Card accent="bg-violet-500">
-          <SectionLabel color="text-violet-700">EHCP Hours Tracker</SectionLabel>
-          <div className="flex gap-8 mb-4">
-            {[
-              { l: "Delivered",  v: totalHours.toFixed(1) + "h" },
-              { l: "Allocated",  v: child.ehcpHours.toFixed(0) + "h" },
-              { l: "Remaining",  v: (child.ehcpHours - totalHours).toFixed(1) + "h" },
-            ].map(s => (
-              <div key={s.l}>
-                <p className="text-2xl font-bold text-gray-800" style={FH}>{s.v}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
-              </div>
-            ))}
-          </div>
-          <div className="h-3 rounded-full overflow-hidden" style={{ background: "#F5EFE8" }}>
-            <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-          </div>
-          <p className="text-xs text-gray-400 mt-1.5">{pct.toFixed(0)}% of annual allocation used</p>
-        </Card>
+        <EhcpTrackerCard child={child} updateChild={updateChild} showToast={showToast} totalHours={totalHours} pct={pct} />
       )}
       <TargetCard level="specialist" child={child} updateChild={updateChild} showToast={showToast} />
       <TargetCard level="targeted" child={child} updateChild={updateChild} showToast={showToast} />
@@ -1174,7 +1227,7 @@ function SpecialistSection({ child, updateChild, showToast, setSection }) {
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 function SessionsSection({ child, updateChild, showToast }) {
-  const [newSession, setNewSession] = useState({ date: "", duration: 45, type: "Individual", notes: "" });
+  const [newSession, setNewSession] = useState({ date: "", duration: 45, type: "Individual", notes: "", ehcp_session: false });
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -1185,7 +1238,7 @@ function SessionsSection({ child, updateChild, showToast }) {
     setSessionsLoading(true);
     fetchSessions(child.id)
       .then(rows => {
-        const sessions = (rows || []).map(r => ({ id: r.id, date: r.date, duration: r.duration, type: r.type, notes: r.notes || "" }));
+        const sessions = (rows || []).map(r => ({ id: r.id, date: r.date, duration: r.duration, type: r.type, notes: r.notes || "", ehcp_session: r.ehcp_session ?? false }));
         updateChild(child.id, c => ({ sessionsLogged: sessions }));
       })
       .catch(err => console.error("Failed to load sessions:", err))
@@ -1206,14 +1259,14 @@ function SessionsSection({ child, updateChild, showToast }) {
       const savedRows = await insertSession(child.id, newSession);
       if (!savedRows?.length) throw new Error("Could not save — please try again.");
       const saved = savedRows[0];
-      const session = { id: saved.id, date: saved.date, duration: saved.duration, type: saved.type, notes: saved.notes || "" };
+      const session = { id: saved.id, date: saved.date, duration: saved.duration, type: saved.type, notes: saved.notes || "", ehcp_session: saved.ehcp_session ?? false };
       updateChild(child.id, c => ({ sessionsLogged: [...c.sessionsLogged, session] }));
-      setNewSession({ date: "", duration: 45, type: "Individual", notes: "" });
+      setNewSession({ date: "", duration: 45, type: "Individual", notes: "", ehcp_session: false });
       showToast("Session logged ✓");
     } catch (err) { showToast(friendlyError(err), "error"); }
   };
 
-  const startEdit = (s) => { setEditingId(s.id); setEditForm({ date: s.date, duration: s.duration, type: s.type, notes: s.notes }); };
+  const startEdit = (s) => { setEditingId(s.id); setEditForm({ date: s.date, duration: s.duration, type: s.type, notes: s.notes, ehcp_session: s.ehcp_session ?? false }); };
   const cancelEdit = () => { setEditingId(null); setEditForm({}); };
 
   const saveEdit = async () => {
@@ -1225,7 +1278,7 @@ function SessionsSection({ child, updateChild, showToast }) {
     const ok = await confirm("Save changes to this session?", { label: "Save" });
     if (!ok) return;
     try {
-      await patchSession(editingId, { date: editForm.date, duration: +editForm.duration, type: editForm.type, notes: editForm.notes || null });
+      await patchSession(editingId, { date: editForm.date, duration: +editForm.duration, type: editForm.type, notes: editForm.notes || null, ehcp_session: editForm.ehcp_session ?? false });
       updateChild(child.id, c => ({
         sessionsLogged: c.sessionsLogged.map(s => s.id === editingId ? { ...s, ...editForm, duration: +editForm.duration } : s),
       }));
@@ -1264,6 +1317,14 @@ function SessionsSection({ child, updateChild, showToast }) {
           style={{ borderColor: "#E8DDD5", background: "#FDFAF7" }}
           onFocus={e => { e.target.style.borderColor = CORAL; e.target.style.boxShadow = `0 0 0 3px rgba(224,92,92,0.1)`; }}
           onBlur={e => { e.target.style.borderColor = "#E8DDD5"; e.target.style.boxShadow = "none"; }} />
+        {child.ehcp && (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mb-3">
+            <input type="checkbox" checked={newSession.ehcp_session}
+              onChange={e => setNewSession(s => ({ ...s, ehcp_session: e.target.checked }))}
+              className="rounded accent-violet-600" />
+            Counts towards EHCP allocation
+          </label>
+        )}
         <PBtn onClick={logSession}>Log Session</PBtn>
       </Card>
 
@@ -1293,6 +1354,14 @@ function SessionsSection({ child, updateChild, showToast }) {
                       style={{ borderColor: "#E8DDD5", background: "#FDFAF7" }}
                       onFocus={e => { e.target.style.borderColor = CORAL; e.target.style.boxShadow = `0 0 0 3px rgba(224,92,92,0.1)`; }}
                       onBlur={e => { e.target.style.borderColor = "#E8DDD5"; e.target.style.boxShadow = "none"; }} />
+                    {child.ehcp && (
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={editForm.ehcp_session ?? false}
+                          onChange={e => setEditForm(f => ({ ...f, ehcp_session: e.target.checked }))}
+                          className="rounded accent-violet-600" />
+                        Counts towards EHCP allocation
+                      </label>
+                    )}
                     <div className="flex gap-2 pt-1">
                       <PBtn onClick={saveEdit} className="text-xs py-1.5 px-3">Save</PBtn>
                       <SBtn onClick={cancelEdit} className="text-xs py-1.5 px-3">Cancel</SBtn>
@@ -1306,6 +1375,7 @@ function SessionsSection({ child, updateChild, showToast }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-gray-600">{s.duration}min</span>
                         <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{s.type}</span>
+                        {s.ehcp_session && <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">EHCP</span>}
                       </div>
                       {s.notes && <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{s.notes}</p>}
                     </div>

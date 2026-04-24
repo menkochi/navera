@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom"
-import AppDashboard from "./pages/AppDashboard"
+import SLTApp from "./att_v6_uat"
 import LoginPage from "./pages/LoginPage"
 import ProtectedRoute from "./components/ProtectedRoute"
 
@@ -32,7 +32,7 @@ export default function App() {
           path="/app"
           element={
             <ProtectedRoute>
-              <AppDashboard />
+              <SLTApp />
             </ProtectedRoute>
           }
         />

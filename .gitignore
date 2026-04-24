@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Data files (may contain sensitive/personal data)
+data/
+
+# Old backups and drafts
+att_v5_backup.tsx
+src/att_v5.tsx
+src/att_v6.tsx
+
+# Personal notes and planning docs
+soidontforget.txt
+apr24.plan.md
+docs/

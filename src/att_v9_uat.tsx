@@ -112,16 +112,16 @@ async function deleteSession(sessionId) {
   return supabaseFetch(`sessions_uat?id=eq.${sessionId}`, { method: "DELETE" });
 }
 
-async function fetchTargetsForChildren(childIds) {
-  if (!childIds.length) return [];
-  return supabaseFetch(`targets_uat?child_id=in.(${childIds.join(",")})&order=date_added.asc`);
+async function fetchTargetsForTerms(termIds) {
+  if (!termIds.length) return [];
+  return supabaseFetch(`targets_uat?term_id=in.(${termIds.join(",")})&order=created_at.asc`);
 }
-async function insertTarget(childId, level, text) {
+async function insertTarget(termId, level, text) {
   const today = new Date().toISOString().slice(0, 10);
   return supabaseFetch("targets_uat", {
     method: "POST",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ child_id: childId, level, target: text, status: "in_progress", date_added: today, cleared: false }),
+    body: JSON.stringify({ term_id: termId, level, target: text, status: "in_progress", date_added: today, cleared: false }),
   });
 }
 async function patchTarget(targetId, text) {
@@ -425,13 +425,13 @@ function SLTAppInner() {
         const rows = await fetchCaseload();
         if (rows && rows.length > 0) {
           const dedupedRows = dedupeByLatestTerm(rows);
-          const childIds = dedupedRows.map(r => (r.children_uat || {}).id || r.child_id).filter(Boolean);
-          const targetRows = childIds.length ? await fetchTargetsForChildren(childIds) : [];
+          const termIds = dedupedRows.map(r => r.id).filter(Boolean);
+          const targetRows = termIds.length ? await fetchTargetsForTerms(termIds) : [];
 
-          const byChild = {};
+          const byTerm = {};
           targetRows.forEach(t => {
-            if (!byChild[t.child_id]) byChild[t.child_id] = { universal: [], targeted: [], specialist: [] };
-            if (byChild[t.child_id][t.level]) byChild[t.child_id][t.level].push({
+            if (!byTerm[t.term_id]) byTerm[t.term_id] = { universal: [], targeted: [], specialist: [] };
+            if (byTerm[t.term_id][t.level]) byTerm[t.term_id][t.level].push({
               id: t.id,
               text: t.target,
               status: t.status || "in_progress",
@@ -441,13 +441,10 @@ function SLTAppInner() {
             });
           });
 
-          setChildren(dedupedRows.map(row => {
-            const childId = (row.children_uat || {}).id || row.child_id;
-            return {
-              ...mapRowToChild(row),
-              currentTargets: byChild[childId] || { universal: [], targeted: [], specialist: [] },
-            };
-          }));
+          setChildren(dedupedRows.map(row => ({
+            ...mapRowToChild(row),
+            currentTargets: byTerm[row.id] || { universal: [], targeted: [], specialist: [] },
+          })));
         }
       } catch (err) {
         setDbError(`Could not load from Supabase: ${err.message}. Check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.`);
@@ -1163,7 +1160,7 @@ function TargetCard({ level, child, updateChild, showToast }) {
     const ok = await confirm(`Add this ${level} target for ${child.name}?`, { label: "Add target" });
     if (!ok) return;
     try {
-      const rows = await insertTarget(child.id, level, text);
+      const rows = await insertTarget(child.supabaseTermId, level, text);
       if (!rows?.length) throw new Error("Could not save — please try again.");
       const row = rows[0];
       updateChild(child.id, c => ({
@@ -2078,11 +2075,14 @@ function ImportModal({ onClose, setChildren, showToast }) {
         const childRows = await upsertChild(child);
         if (!childRows?.length) throw new Error("Could not save — please try again.");
         const childRow = childRows[0];
-        await insertCaseloadTerm(childRow.id, child);
-        for (const level of ["universal", "targeted", "specialist"]) {
-          for (const item of (child.currentTargets[level] || [])) {
-            const text = typeof item === "string" ? item : item.text;
-            if (text) await insertTarget(childRow.id, level, text);
+        const termRows = await insertCaseloadTerm(childRow.id, child);
+        const termId = termRows?.[0]?.id;
+        if (termId) {
+          for (const level of ["universal", "targeted", "specialist"]) {
+            for (const item of (child.currentTargets[level] || [])) {
+              const text = typeof item === "string" ? item : item.text;
+              if (text) await insertTarget(termId, level, text);
+            }
           }
         }
         ok++;
@@ -2092,12 +2092,12 @@ function ImportModal({ onClose, setChildren, showToast }) {
       const rows = await fetchCaseload();
       if (rows && rows.length > 0) {
         const dedupedRows = dedupeByLatestTerm(rows);
-        const childIds = dedupedRows.map(r => (r.children_uat || {}).id || r.child_id).filter(Boolean);
-        const targetRows = childIds.length ? await fetchTargetsForChildren(childIds) : [];
-        const byChild = {};
+        const termIds = dedupedRows.map(r => r.id).filter(Boolean);
+        const targetRows = termIds.length ? await fetchTargetsForTerms(termIds) : [];
+        const byTerm = {};
         targetRows.forEach(t => {
-          if (!byChild[t.child_id]) byChild[t.child_id] = { universal: [], targeted: [], specialist: [] };
-          if (byChild[t.child_id][t.level]) byChild[t.child_id][t.level].push({
+          if (!byTerm[t.term_id]) byTerm[t.term_id] = { universal: [], targeted: [], specialist: [] };
+          if (byTerm[t.term_id][t.level]) byTerm[t.term_id][t.level].push({
             id: t.id,
             text: t.target,
             status: t.status || "in_progress",
@@ -2106,10 +2106,7 @@ function ImportModal({ onClose, setChildren, showToast }) {
             cleared: t.cleared ?? false,
           });
         });
-        setChildren(dedupedRows.map(row => {
-          const childId = (row.children_uat || {}).id || row.child_id;
-          return { ...mapRowToChild(row), currentTargets: byChild[childId] || { universal: [], targeted: [], specialist: [] } };
-        }));
+        setChildren(dedupedRows.map(row => ({ ...mapRowToChild(row), currentTargets: byTerm[row.id] || { universal: [], targeted: [], specialist: [] } })));
       }
     } catch {}
     setSaving(false);

@@ -804,7 +804,8 @@ function ProfileSidebar({ section, setSection, child, onBack }) {
 
 // ── Child Profile ─────────────────────────────────────────────────────────────
 function ChildProfile({ child, section, setSection, updateChild, showToast }) {
-  const totalTargets = [...child.currentTargets.universal, ...child.currentTargets.targeted, ...child.currentTargets.specialist].length;
+  const inProgress = (arr) => arr.filter(t => t.status !== "completed");
+  const totalTargets = inProgress([...child.currentTargets.universal, ...child.currentTargets.targeted, ...child.currentTargets.specialist]).length;
   const totalHours = child.sessionsLogged.filter(s => s.ehcp_session).reduce((s, sess) => s + sess.duration, 0) / 60;
   const ehcpPct = child.ehcp && child.ehcpHours > 0
     ? Math.min(100, Math.round((totalHours / child.ehcpHours) * 100)) : null;
@@ -831,11 +832,11 @@ function ChildProfile({ child, section, setSection, updateChild, showToast }) {
         {/* Stat tiles — horizontal scroll on mobile */}
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {[
-            { label: "Targets",   value: totalTargets,                          bg: "bg-rose-500",    text: "text-white" },
-            { label: "Sessions",  value: child.sessionsLogged.length,            bg: "bg-sky-500",     text: "text-white" },
-            { label: "Hours",     value: totalHours.toFixed(1) + "h",            bg: "bg-amber-500",   text: "text-white" },
-            { label: "Universal", value: child.currentTargets.universal.length,  bg: "bg-emerald-600", text: "text-white" },
-            { label: "Targeted",  value: child.currentTargets.targeted.length,   bg: "bg-sky-600",     text: "text-white" },
+            { label: "Targets",   value: totalTargets,                                       bg: "bg-rose-500",    text: "text-white" },
+            { label: "Sessions",  value: child.sessionsLogged.length,                       bg: "bg-sky-500",     text: "text-white" },
+            { label: "Hours",     value: totalHours.toFixed(1) + "h",                       bg: "bg-amber-500",   text: "text-white" },
+            { label: "Universal", value: inProgress(child.currentTargets.universal).length, bg: "bg-emerald-600", text: "text-white" },
+            { label: "Targeted",  value: inProgress(child.currentTargets.targeted).length,  bg: "bg-sky-600",     text: "text-white" },
             { label: "EHCP %",    value: ehcpPct !== null ? `${ehcpPct}%` : "—", bg: "bg-violet-600",  text: "text-white" },
           ].map((t, i) => <StatBadge key={i} {...t} />)}
         </div>
@@ -899,7 +900,7 @@ function SLProfileSection({ child }) {
   const [showAll, setShowAll] = useState(false);
   const TIERS = ["universal", "targeted", "specialist"];
 
-  // "Current" = not cleared and not completed
+  // "Current" = not hidden/cleared and not achieved
   const filterTargets = (items) =>
     showAll ? items : items.filter(t => !t.cleared && t.status !== "completed");
 
@@ -961,7 +962,7 @@ function SLProfileSection({ child }) {
           <p className="text-gray-400 text-sm italic">No targets set yet</p>
         ) : !hasVisible ? (
           <div className="text-center py-4">
-            <p className="text-gray-400 text-sm italic">No current targets — all are completed or cleared</p>
+            <p className="text-gray-400 text-sm italic">No current targets — all are achieved or hidden</p>
             <button onClick={() => setShowAll(true)}
               className="mt-2 text-xs font-semibold underline" style={{ color: CORAL }}>
               Show all targets
@@ -986,7 +987,7 @@ function SLProfileSection({ child }) {
                           <span className={`flex-1 font-medium leading-snug whitespace-pre-wrap ${isCleared ? "text-gray-400 italic" : isCompleted ? "text-gray-500 line-through" : "text-gray-700"}`}>
                             {t.text}
                           </span>
-                          {isCompleted && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Done</span>}
+                          {isCompleted && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Achieved</span>}
                           {isCleared  && <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Cleared</span>}
                         </li>
                       );
@@ -1076,7 +1077,7 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
                           {t.text}
                         </span>
                         {isCompleted
-                          ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Completed</span>
+                          ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Achieved</span>
                           : <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full flex-shrink-0">In Progress</span>}
                       </div>
                       <div className="flex items-center gap-4 px-3 pb-2 pt-0.5">
@@ -1091,8 +1092,8 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
                         <button onClick={() => onStatusToggle(t.id, t.status)}
                           className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex-shrink-0"
                           style={isCompleted ? { background: "#EFF6FF", color: "#1E3A8A" } : { background: "#F0FDF4", color: "#065F46" }}
-                          title={isCompleted ? "Mark as in progress" : "Mark as completed"}>
-                          {isCompleted ? "↩ In Progress" : "✓ Complete"}
+                          title={isCompleted ? "Mark as in progress" : "Mark as achieved"}>
+                          {isCompleted ? "↩ In Progress" : "✓ Achieve"}
                         </button>
                         <button onClick={() => hideTarget(t.id)}
                           className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors flex-shrink-0"

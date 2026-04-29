@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom"
-import SLTApp from "./att_v6_uat"
+import SLTApp from "./att_v8_uat"
 import LoginPage from "./pages/LoginPage"
 import ProtectedRoute from "./components/ProtectedRoute"
 

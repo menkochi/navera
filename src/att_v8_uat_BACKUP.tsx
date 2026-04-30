@@ -1,30 +1,9 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, createContext, useContext, useRef } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabase";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import { TextStyle } from "@tiptap/extension-text-style";
-import { Color } from "@tiptap/extension-color";
-import BulletList from "@tiptap/extension-bullet-list";
-import OrderedList from "@tiptap/extension-ordered-list";
 
 /*
-  TIPTAP INSTALL — run in your project root before deploying:
-  npm install @tiptap/react @tiptap/pm @tiptap/starter-kit \
-    @tiptap/extension-underline @tiptap/extension-text-style \
-    @tiptap/extension-color
-
-  TIPTAP CSS — add to your global CSS file (e.g. index.css):
-  .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
-  .ProseMirror ol { list-style-type: decimal; padding-left: 1.2em; }
-  .ProseMirror p { margin: 0 0 0.25em; }
-  .ProseMirror p:last-child { margin-bottom: 0; }
-  .prose ul { list-style-type: disc; padding-left: 1.2em; }
-  .prose ol { list-style-type: decimal; padding-left: 1.2em; }
-  .prose p { margin: 0 0 0.25em; }
-
   FONT SETUP — add these two lines to your index.html <head>:
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -133,16 +112,16 @@ async function deleteSession(sessionId) {
   return supabaseFetch(`sessions_uat?id=eq.${sessionId}`, { method: "DELETE" });
 }
 
-async function fetchTargetsForChildren(childIds) {
-  if (!childIds.length) return [];
-  return supabaseFetch(`targets_uat?child_id=in.(${childIds.join(",")})&order=date_added.asc`);
+async function fetchTargetsForTerms(termIds) {
+  if (!termIds.length) return [];
+  return supabaseFetch(`targets_uat?term_id=in.(${termIds.join(",")})&order=created_at.asc`);
 }
-async function insertTarget(childId, level, text) {
+async function insertTarget(termId, level, text) {
   const today = new Date().toISOString().slice(0, 10);
   return supabaseFetch("targets_uat", {
     method: "POST",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ child_id: childId, level, target: text, status: "in_progress", date_added: today, cleared: false }),
+    body: JSON.stringify({ term_id: termId, level, target: text, status: "in_progress", date_added: today, cleared: false }),
   });
 }
 async function patchTarget(targetId, text) {
@@ -378,170 +357,6 @@ function ErrorBanner({ message, onDismiss }) {
   );
 }
 
-// ── Rich text editor (Tiptap) ─────────────────────────────────────────────────
-function ToolbarBtn({ onClick, active, title, children }) {
-  return (
-    <button type="button" onMouseDown={e => { e.preventDefault(); onClick(); }} title={title}
-      className="flex items-center justify-center rounded transition-all flex-shrink-0 select-none"
-      style={{
-        width: 28, height: 26, fontSize: 13,
-        fontFamily: "Georgia, 'Times New Roman', serif",
-        fontWeight: 700,
-        border: active ? "1px solid #B0A0A0" : "1px solid #D9D0C8",
-        background: active ? "#F5E6E6" : "#FFFFFF",
-        color: active ? CORAL : "#3D3535",
-        boxShadow: active ? "none" : "0 1px 2px rgba(0,0,0,0.08)",
-      }}>
-      {children}
-    </button>
-  );
-}
-
-// Colour picker used in toolbar
-const TEXT_COLOURS = [
-  { label: "Black",  value: "#1a1a1a" },
-  { label: "Coral",  value: "#E05C5C" },
-  { label: "Blue",   value: "#1D4ED8" },
-  { label: "Green",  value: "#166534" },
-  { label: "Purple", value: "#6D28D9" },
-  { label: "Amber",  value: "#D97706" },
-  { label: "Grey",   value: "#6B7280" },
-];
-
-function RichTextEditor({ content, onChange, placeholder = "Type here…", minHeight = 80 }) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ bulletList: false, orderedList: false }),
-      BulletList,
-      OrderedList,
-      Underline,
-      TextStyle,
-      Color,
-    ],
-    content: content || "",
-    onUpdate: ({ editor }) => { onChange(editor.getHTML()); },
-    editorProps: {
-      attributes: {
-        class: "outline-none text-sm text-gray-700 leading-relaxed",
-        style: `min-height:${minHeight}px; padding: 10px 12px;`,
-      },
-    },
-  });
-
-  const [showColours, setShowColours] = useState(false);
-
-  // Sync external content changes (e.g. when parent resets the field)
-  const prevContent = useRef(content);
-  useEffect(() => {
-    if (editor && content !== prevContent.current && content !== editor.getHTML()) {
-      editor.commands.setContent(content || "");
-    }
-    prevContent.current = content;
-  }, [content, editor]);
-
-  if (!editor) return null;
-
-  return (
-    <div className="rounded-xl overflow-hidden transition-all"
-      style={{ border: "1px solid #E8DDD5", background: "#FDFAF7" }}
-      onFocus={() => {}} // border handled by wrapper if needed
-    >
-      {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b flex-wrap"
-        style={{ borderColor: "#EDE6DD", background: "#F7F3EF" }}>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()}
-          active={editor.isActive("bold")} title="Bold">B</ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()}
-          active={editor.isActive("italic")} title="Italic"><em>I</em></ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()}
-          active={editor.isActive("underline")} title="Underline"><u>U</u></ToolbarBtn>
-
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
-
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()}
-          active={editor.isActive("bulletList")} title="Bullet list">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="2" cy="4" r="1.5"/><rect x="5" y="3" width="10" height="2" rx="1"/>
-            <circle cx="2" cy="8" r="1.5"/><rect x="5" y="7" width="10" height="2" rx="1"/>
-            <circle cx="2" cy="12" r="1.5"/><rect x="5" y="11" width="10" height="2" rx="1"/>
-          </svg>
-        </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          active={editor.isActive("orderedList")} title="Numbered list">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <text x="0" y="5" fontSize="5" fontFamily="monospace">1.</text>
-            <rect x="5" y="3" width="10" height="2" rx="1"/>
-            <text x="0" y="9.5" fontSize="5" fontFamily="monospace">2.</text>
-            <rect x="5" y="7" width="10" height="2" rx="1"/>
-            <text x="0" y="14" fontSize="5" fontFamily="monospace">3.</text>
-            <rect x="5" y="11" width="10" height="2" rx="1"/>
-          </svg>
-        </ToolbarBtn>
-
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
-
-        {/* Colour picker */}
-        <div className="relative flex-shrink-0">
-          <ToolbarBtn onClick={() => setShowColours(v => !v)} active={showColours} title="Text colour">
-            <span style={{ fontSize: 13, fontFamily: "Georgia, serif", fontWeight: 700, letterSpacing: "-0.5px" }}>A▾</span>
-          </ToolbarBtn>
-          {showColours && (
-            <div className="absolute top-8 left-0 z-20 bg-white rounded-xl shadow-lg p-2.5 flex gap-2 flex-wrap"
-              style={{ border: "1px solid #E0D8D0", minWidth: 148 }}>
-              {TEXT_COLOURS.map(c => (
-                <button key={c.value} type="button"
-                  onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowColours(false); }}
-                  title={c.label}
-                  className="w-6 h-6 rounded border-2 transition-transform hover:scale-110"
-                  style={{ background: c.value, borderColor: editor.isActive("textStyle", { color: c.value }) ? "#333" : "transparent" }} />
-              ))}
-              <button type="button"
-                onClick={() => { editor.chain().focus().unsetColor().run(); setShowColours(false); }}
-                title="Reset colour"
-                className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
-            </div>
-          )}
-        </div>
-
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
-
-        <ToolbarBtn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Clear formatting">
-          <span style={{ fontSize: 11, fontFamily: "Arial, sans-serif", fontWeight: 700 }}>T<sub style={{ fontSize: 8 }}>✕</sub></span>
-        </ToolbarBtn>
-      </div>
-
-      {/* Editor area */}
-      <div onClick={() => editor.commands.focus()} className="cursor-text relative">
-        {/* Placeholder */}
-        {editor.isEmpty && (
-          <p className="absolute top-0 left-0 px-3 py-2.5 text-sm text-gray-300 pointer-events-none select-none">
-            {placeholder}
-          </p>
-        )}
-        <EditorContent editor={editor} />
-      </div>
-    </div>
-  );
-}
-
-// Renders saved HTML from the editor safely
-// Plain text (legacy) renders fine since it has no HTML tags
-function RichContent({ html, className = "" }) {
-  if (!html) return null;
-  // If content has no HTML tags it's plain text — wrap in a paragraph for consistent spacing
-  const isPlain = !/<[a-z][\s\S]*>/i.test(html);
-  if (isPlain) {
-    return <p className={`text-sm text-gray-700 whitespace-pre-wrap leading-relaxed ${className}`}>{html}</p>;
-  }
-  return (
-    <div
-      className={`prose prose-sm max-w-none text-gray-700 leading-relaxed ${className}`}
-      style={{ fontSize: "0.875rem" }}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
-}
-
 // ── Confirm dialog ────────────────────────────────────────────────────────────
 const ConfirmCtx = createContext(null);
 function useConfirm() { return useContext(ConfirmCtx); }
@@ -610,13 +425,13 @@ function SLTAppInner() {
         const rows = await fetchCaseload();
         if (rows && rows.length > 0) {
           const dedupedRows = dedupeByLatestTerm(rows);
-          const childIds = dedupedRows.map(r => (r.children_uat || {}).id || r.child_id).filter(Boolean);
-          const targetRows = childIds.length ? await fetchTargetsForChildren(childIds) : [];
+          const termIds = dedupedRows.map(r => r.id).filter(Boolean);
+          const targetRows = termIds.length ? await fetchTargetsForTerms(termIds) : [];
 
-          const byChild = {};
+          const byTerm = {};
           targetRows.forEach(t => {
-            if (!byChild[t.child_id]) byChild[t.child_id] = { universal: [], targeted: [], specialist: [] };
-            if (byChild[t.child_id][t.level]) byChild[t.child_id][t.level].push({
+            if (!byTerm[t.term_id]) byTerm[t.term_id] = { universal: [], targeted: [], specialist: [] };
+            if (byTerm[t.term_id][t.level]) byTerm[t.term_id][t.level].push({
               id: t.id,
               text: t.target,
               status: t.status || "in_progress",
@@ -626,13 +441,10 @@ function SLTAppInner() {
             });
           });
 
-          setChildren(dedupedRows.map(row => {
-            const childId = (row.children_uat || {}).id || row.child_id;
-            return {
-              ...mapRowToChild(row),
-              currentTargets: byChild[childId] || { universal: [], targeted: [], specialist: [] },
-            };
-          }));
+          setChildren(dedupedRows.map(row => ({
+            ...mapRowToChild(row),
+            currentTargets: byTerm[row.id] || { universal: [], targeted: [], specialist: [] },
+          })));
         }
       } catch (err) {
         setDbError(`Could not load from Supabase: ${err.message}. Check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.`);
@@ -1172,9 +984,9 @@ function SLProfileSection({ child }) {
                         <li key={t.id} className="flex items-start gap-2.5 px-3 py-2 rounded-xl text-sm"
                           style={{ background: isCleared ? "#F9F9F9" : isCompleted ? "#F0FDF4" : "#FDFAF7", border: isCleared ? "1px dashed #D1D5DB" : "none" }}>
                           <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isCleared || isCompleted ? "bg-gray-300" : TC[tier].dot}`} />
-                          <div className={`flex-1 min-w-0 ${isCleared ? "opacity-50" : ""}`}>
-                            <RichContent html={t.text} className={isCompleted ? "line-through" : ""} />
-                          </div>
+                          <span className={`flex-1 font-medium leading-snug whitespace-pre-wrap ${isCleared ? "text-gray-400 italic" : isCompleted ? "text-gray-500 line-through" : "text-gray-700"}`}>
+                            {t.text}
+                          </span>
                           {isCompleted && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Achieved</span>}
                           {isCleared  && <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Cleared</span>}
                         </li>
@@ -1191,13 +1003,14 @@ function SLProfileSection({ child }) {
   );
 }
 
+// ── Target list helper ────────────────────────────────────────────────────────
 function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, onEdit, onRemove, onStatusToggle }) {
   const [val, setVal] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editVal, setEditVal] = useState("");
   const [hiddenIds, setHiddenIds] = useState(() => new Set(targets.filter(t => t.cleared).map(t => t.id)));
 
-  const add = () => { if (!val || val === "<p></p>" || val.trim() === "") return; onAdd(val); setVal(""); };
+  const add = () => { if (!val.trim()) return; onAdd(val); setVal(""); };
   const startEdit = (t) => { setEditingId(t.id); setEditVal(t.text); };
   const cancelEdit = () => { setEditingId(null); setEditVal(""); };
   const hideTarget   = (id) => setHiddenIds(prev => new Set([...prev, id]));
@@ -1206,7 +1019,7 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
   const showAll      = () => setHiddenIds(new Set());
 
   const saveEdit = async () => {
-    if (!editVal || editVal === "<p></p>" || editVal.trim() === "") return;
+    if (!editVal.trim()) return;
     await onEdit(editingId, editVal);
     cancelEdit();
   };
@@ -1241,28 +1054,28 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
               return (
                 <li key={t.id}>
                   {editingId === t.id ? (
-                    <div className="flex flex-col gap-2 px-3 py-2 rounded-xl border-2" style={{ background: itemBg, borderColor: CORAL }}>
-                      <RichTextEditor
-                        content={editVal}
-                        onChange={setEditVal}
-                        placeholder="Edit target…"
-                        minHeight={60}
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl border-2" style={{ background: itemBg, borderColor: CORAL }}>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
+                      <textarea
+                        value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Escape") cancelEdit(); }}
+                        className="flex-1 text-sm font-medium text-gray-700 bg-transparent outline-none resize-y min-h-[2rem]"
+                        autoFocus
                       />
-                      <div className="flex gap-2">
-                        <button onClick={saveEdit}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white"
-                          style={{ background: CORAL }}>Save</button>
-                        <button onClick={cancelEdit}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-gray-500 bg-gray-100">Cancel</button>
-                      </div>
+                      <button onClick={saveEdit}
+                        className="text-xs font-semibold px-2 py-1 rounded-lg text-white flex-shrink-0"
+                        style={{ background: CORAL }}>Save</button>
+                      <button onClick={cancelEdit}
+                        className="text-xs font-semibold px-2 py-1 rounded-lg text-gray-500 bg-gray-100 flex-shrink-0">✕</button>
                     </div>
                   ) : (
                     <div className="rounded-xl text-sm overflow-hidden" style={{ background: isCompleted ? "#F0FDF4" : itemBg }}>
                       <div className="flex items-start gap-3 px-3 pt-3 pb-1">
                         <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isCompleted ? "bg-gray-300" : dotColor}`} />
-                        <div className={`flex-1 ${isCompleted ? "opacity-60" : ""}`}>
-                          <RichContent html={t.text} className={isCompleted ? "line-through" : ""} />
-                        </div>
+                        <span className={`flex-1 font-medium leading-snug whitespace-pre-wrap ${isCompleted ? "text-gray-500 line-through" : "text-gray-700"}`}>
+                          {t.text}
+                        </span>
                         {isCompleted
                           ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">✓ Achieved</span>
                           : <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full flex-shrink-0">In Progress</span>}
@@ -1308,7 +1121,7 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
             <li key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm"
               style={{ background: "#F9F9F9", border: "1px dashed #D1D5DB" }}>
               <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-300" />
-              <div className="flex-1 min-w-0 opacity-50"><RichContent html={t.text} /></div>
+              <span className="flex-1 font-medium text-gray-400 italic leading-snug whitespace-pre-wrap">{t.text}</span>
               <button onClick={() => unhideTarget(t.id)}
                 className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors flex-shrink-0">
                 Unhide
@@ -1317,16 +1130,16 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
           ))}
         </ul>
       )}
-      <div className="mt-2">
-        <RichTextEditor
-          content={val}
-          onChange={setVal}
-          placeholder="Add a new target…"
-          minHeight={72}
-        />
+      <div className="flex gap-2 items-end">
+        <textarea value={val} onChange={e => setVal(e.target.value)}
+          placeholder="Add a new target…" maxLength={500} rows={2}
+          className="flex-1 w-full border rounded-xl px-3 py-2.5 text-sm outline-none transition-all resize-y"
+          style={{ borderColor: "#E8DDD5", background: "#FDFAF7" }}
+          onFocus={e => { e.target.style.borderColor = CORAL; e.target.style.boxShadow = `0 0 0 3px rgba(224,92,92,0.1)`; }}
+          onBlur={e => { e.target.style.borderColor = "#E8DDD5"; e.target.style.boxShadow = "none"; }} />
         <button onClick={add}
-          className={`mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-white ${barColor} hover:opacity-90`}>
-          Add Target
+          className={`px-4 py-2 rounded-xl text-sm font-semibold text-white flex-shrink-0 ${barColor} hover:opacity-90`}>
+          Add
         </button>
       </div>
     </div>
@@ -1347,7 +1160,7 @@ function TargetCard({ level, child, updateChild, showToast }) {
     const ok = await confirm(`Add this ${level} target for ${child.name}?`, { label: "Add target" });
     if (!ok) return;
     try {
-      const rows = await insertTarget(child.id, level, text);
+      const rows = await insertTarget(child.supabaseTermId, level, text);
       if (!rows?.length) throw new Error("Could not save — please try again.");
       const row = rows[0];
       updateChild(child.id, c => ({
@@ -1668,13 +1481,12 @@ function SessionsSection({ child, updateChild, showToast }) {
             <option>Individual</option><option>Group</option><option>Observation</option><option>Consultation</option><option>Review Assessment</option><option>Initial Assessment</option>
           </SSelect>
         </div>
-        <RichTextEditor
-          content={newSession.notes}
-          onChange={v => setNewSession(s => ({ ...s, notes: v }))}
-          placeholder="Session notes…"
-          minHeight={80}
-        />
-        <div className="mb-3" />
+        <textarea value={newSession.notes} onChange={e => setNewSession(s => ({ ...s, notes: e.target.value }))}
+          placeholder="Session notes…" maxLength={1000} rows={3}
+          className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none transition-all resize-y mb-3"
+          style={{ borderColor: "#E8DDD5", background: "#FDFAF7" }}
+          onFocus={e => { e.target.style.borderColor = CORAL; e.target.style.boxShadow = `0 0 0 3px rgba(224,92,92,0.1)`; }}
+          onBlur={e => { e.target.style.borderColor = "#E8DDD5"; e.target.style.boxShadow = "none"; }} />
         {child.ehcp && (
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mb-3">
             <input type="checkbox" checked={newSession.ehcp_session}
@@ -1706,12 +1518,12 @@ function SessionsSection({ child, updateChild, showToast }) {
                         <option>Individual</option><option>Group</option><option>Observation</option><option>Consultation</option><option>Review Assessment</option><option>Initial Assessment</option>
                       </SSelect>
                     </div>
-                    <RichTextEditor
-                      content={editForm.notes}
-                      onChange={v => setEditForm(f => ({ ...f, notes: v }))}
-                      placeholder="Session notes…"
-                      minHeight={72}
-                    />
+                    <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Session notes…" maxLength={1000} rows={3}
+                      className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none transition-all resize-y"
+                      style={{ borderColor: "#E8DDD5", background: "#FDFAF7" }}
+                      onFocus={e => { e.target.style.borderColor = CORAL; e.target.style.boxShadow = `0 0 0 3px rgba(224,92,92,0.1)`; }}
+                      onBlur={e => { e.target.style.borderColor = "#E8DDD5"; e.target.style.boxShadow = "none"; }} />
                     {child.ehcp && (
                       <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                         <input type="checkbox" checked={editForm.ehcp_session ?? false}
@@ -1735,7 +1547,7 @@ function SessionsSection({ child, updateChild, showToast }) {
                         <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{s.type}</span>
                         {s.ehcp_session && <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">EHCP</span>}
                       </div>
-                      {s.notes && <div className="mt-1"><RichContent html={s.notes} /></div>}
+                      {s.notes && <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{s.notes}</p>}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <button onClick={() => startEdit(s)}
@@ -2263,11 +2075,14 @@ function ImportModal({ onClose, setChildren, showToast }) {
         const childRows = await upsertChild(child);
         if (!childRows?.length) throw new Error("Could not save — please try again.");
         const childRow = childRows[0];
-        await insertCaseloadTerm(childRow.id, child);
-        for (const level of ["universal", "targeted", "specialist"]) {
-          for (const item of (child.currentTargets[level] || [])) {
-            const text = typeof item === "string" ? item : item.text;
-            if (text) await insertTarget(childRow.id, level, text);
+        const termRows = await insertCaseloadTerm(childRow.id, child);
+        const termId = termRows?.[0]?.id;
+        if (termId) {
+          for (const level of ["universal", "targeted", "specialist"]) {
+            for (const item of (child.currentTargets[level] || [])) {
+              const text = typeof item === "string" ? item : item.text;
+              if (text) await insertTarget(termId, level, text);
+            }
           }
         }
         ok++;
@@ -2277,12 +2092,12 @@ function ImportModal({ onClose, setChildren, showToast }) {
       const rows = await fetchCaseload();
       if (rows && rows.length > 0) {
         const dedupedRows = dedupeByLatestTerm(rows);
-        const childIds = dedupedRows.map(r => (r.children_uat || {}).id || r.child_id).filter(Boolean);
-        const targetRows = childIds.length ? await fetchTargetsForChildren(childIds) : [];
-        const byChild = {};
+        const termIds = dedupedRows.map(r => r.id).filter(Boolean);
+        const targetRows = termIds.length ? await fetchTargetsForTerms(termIds) : [];
+        const byTerm = {};
         targetRows.forEach(t => {
-          if (!byChild[t.child_id]) byChild[t.child_id] = { universal: [], targeted: [], specialist: [] };
-          if (byChild[t.child_id][t.level]) byChild[t.child_id][t.level].push({
+          if (!byTerm[t.term_id]) byTerm[t.term_id] = { universal: [], targeted: [], specialist: [] };
+          if (byTerm[t.term_id][t.level]) byTerm[t.term_id][t.level].push({
             id: t.id,
             text: t.target,
             status: t.status || "in_progress",
@@ -2291,10 +2106,7 @@ function ImportModal({ onClose, setChildren, showToast }) {
             cleared: t.cleared ?? false,
           });
         });
-        setChildren(dedupedRows.map(row => {
-          const childId = (row.children_uat || {}).id || row.child_id;
-          return { ...mapRowToChild(row), currentTargets: byChild[childId] || { universal: [], targeted: [], specialist: [] } };
-        }));
+        setChildren(dedupedRows.map(row => ({ ...mapRowToChild(row), currentTargets: byTerm[row.id] || { universal: [], targeted: [], specialist: [] } })));
       }
     } catch {}
     setSaving(false);

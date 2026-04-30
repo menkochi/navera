@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import { TextStyle } from "@tiptap/extension-text-style";
+import TextStyle from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
@@ -379,19 +379,14 @@ function ErrorBanner({ message, onDismiss }) {
 }
 
 // ── Rich text editor (Tiptap) ─────────────────────────────────────────────────
+// Toolbar button helper
 function ToolbarBtn({ onClick, active, title, children }) {
   return (
     <button type="button" onMouseDown={e => { e.preventDefault(); onClick(); }} title={title}
-      className="flex items-center justify-center rounded transition-all flex-shrink-0 select-none"
-      style={{
-        width: 28, height: 26, fontSize: 13,
-        fontFamily: "Georgia, 'Times New Roman', serif",
-        fontWeight: 700,
-        border: active ? "1px solid #B0A0A0" : "1px solid #D9D0C8",
-        background: active ? "#F5E6E6" : "#FFFFFF",
-        color: active ? CORAL : "#3D3535",
-        boxShadow: active ? "none" : "0 1px 2px rgba(0,0,0,0.08)",
-      }}>
+      className="p-1 rounded text-xs font-bold transition-colors flex-shrink-0"
+      style={active
+        ? { background: CORAL, color: "#fff" }
+        : { background: "transparent", color: "#6B7280" }}>
       {children}
     </button>
   );
@@ -428,8 +423,6 @@ function RichTextEditor({ content, onChange, placeholder = "Type here…", minHe
     },
   });
 
-  const [showColours, setShowColours] = useState(false);
-
   // Sync external content changes (e.g. when parent resets the field)
   const prevContent = useRef(content);
   useEffect(() => {
@@ -441,14 +434,16 @@ function RichTextEditor({ content, onChange, placeholder = "Type here…", minHe
 
   if (!editor) return null;
 
+  const [showColours, setShowColours] = useState(false);
+
   return (
     <div className="rounded-xl overflow-hidden transition-all"
       style={{ border: "1px solid #E8DDD5", background: "#FDFAF7" }}
       onFocus={() => {}} // border handled by wrapper if needed
     >
       {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b flex-wrap"
-        style={{ borderColor: "#EDE6DD", background: "#F7F3EF" }}>
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b flex-wrap"
+        style={{ borderColor: "#EDE6DD", background: "#FDF8F3" }}>
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive("bold")} title="Bold">B</ToolbarBtn>
         <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -456,44 +451,29 @@ function RichTextEditor({ content, onChange, placeholder = "Type here…", minHe
         <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()}
           active={editor.isActive("underline")} title="Underline"><u>U</u></ToolbarBtn>
 
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
+        <div className="w-px h-4 bg-gray-200 mx-1 flex-shrink-0" />
 
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()}
-          active={editor.isActive("bulletList")} title="Bullet list">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="2" cy="4" r="1.5"/><rect x="5" y="3" width="10" height="2" rx="1"/>
-            <circle cx="2" cy="8" r="1.5"/><rect x="5" y="7" width="10" height="2" rx="1"/>
-            <circle cx="2" cy="12" r="1.5"/><rect x="5" y="11" width="10" height="2" rx="1"/>
-          </svg>
-        </ToolbarBtn>
+          active={editor.isActive("bulletList")} title="Bullet list">≡</ToolbarBtn>
         <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          active={editor.isActive("orderedList")} title="Numbered list">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <text x="0" y="5" fontSize="5" fontFamily="monospace">1.</text>
-            <rect x="5" y="3" width="10" height="2" rx="1"/>
-            <text x="0" y="9.5" fontSize="5" fontFamily="monospace">2.</text>
-            <rect x="5" y="7" width="10" height="2" rx="1"/>
-            <text x="0" y="14" fontSize="5" fontFamily="monospace">3.</text>
-            <rect x="5" y="11" width="10" height="2" rx="1"/>
-          </svg>
-        </ToolbarBtn>
+          active={editor.isActive("orderedList")} title="Numbered list">1.</ToolbarBtn>
 
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
+        <div className="w-px h-4 bg-gray-200 mx-1 flex-shrink-0" />
 
         {/* Colour picker */}
         <div className="relative flex-shrink-0">
           <ToolbarBtn onClick={() => setShowColours(v => !v)} active={showColours} title="Text colour">
-            <span style={{ fontSize: 13, fontFamily: "Georgia, serif", fontWeight: 700, letterSpacing: "-0.5px" }}>A▾</span>
+            A<span className="text-[8px] ml-0.5">▼</span>
           </ToolbarBtn>
           {showColours && (
-            <div className="absolute top-8 left-0 z-20 bg-white rounded-xl shadow-lg p-2.5 flex gap-2 flex-wrap"
-              style={{ border: "1px solid #E0D8D0", minWidth: 148 }}>
+            <div className="absolute top-7 left-0 z-20 bg-white rounded-xl shadow-lg p-2 flex gap-1.5 flex-wrap"
+              style={{ border: "1px solid #F0EBE3", minWidth: 140 }}>
               {TEXT_COLOURS.map(c => (
                 <button key={c.value} type="button"
                   onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowColours(false); }}
                   title={c.label}
-                  className="w-6 h-6 rounded border-2 transition-transform hover:scale-110"
-                  style={{ background: c.value, borderColor: editor.isActive("textStyle", { color: c.value }) ? "#333" : "transparent" }} />
+                  className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ background: c.value, borderColor: editor.isActive("textStyle", { color: c.value }) ? "#000" : "transparent" }} />
               ))}
               <button type="button"
                 onClick={() => { editor.chain().focus().unsetColor().run(); setShowColours(false); }}
@@ -503,11 +483,10 @@ function RichTextEditor({ content, onChange, placeholder = "Type here…", minHe
           )}
         </div>
 
-        <div className="w-px h-5 bg-gray-300 mx-1 flex-shrink-0" />
+        <div className="w-px h-4 bg-gray-200 mx-1 flex-shrink-0" />
 
-        <ToolbarBtn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Clear formatting">
-          <span style={{ fontSize: 11, fontFamily: "Arial, sans-serif", fontWeight: 700 }}>T<sub style={{ fontSize: 8 }}>✕</sub></span>
-        </ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().setHardBreak().run()} title="Line break">↵</ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Clear formatting">⌫</ToolbarBtn>
       </div>
 
       {/* Editor area */}

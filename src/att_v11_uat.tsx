@@ -702,8 +702,8 @@ function SLTAppInner() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: SAND, ...F }}>
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-sm font-bold mx-auto mb-5 shadow-lg"
-            style={{ background: CORAL }}>SLT</div>
+          <div className="h-14 px-4 rounded-2xl flex items-center justify-center text-white text-sm font-bold mx-auto mb-5 shadow-lg"
+            style={{ background: CORAL }}>Navera</div>
           <p className="text-gray-500 text-sm font-medium">Loading your caseload…</p>
           <div className="mt-4 flex justify-center gap-1.5">
             {[0,1,2].map(i => (
@@ -725,8 +725,8 @@ function SLTAppInner() {
 
         <div className="flex items-center gap-3 min-w-0">
           {/* Logo */}
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm"
-            style={{ background: CORAL }}>SLT</div>
+          <div className="h-9 px-3 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm"
+            style={{ background: CORAL }}>Navera</div>
 
           {/* Desktop breadcrumb */}
           <nav className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">

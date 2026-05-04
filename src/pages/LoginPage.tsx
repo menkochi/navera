@@ -4,7 +4,6 @@ import { supabase } from "../lib/supabase"
 
 const MENTHE      = "#96C7B3"
 const MENTHE_DEEP = "#6aaa95"
-const NECTARINE   = "#D7897F"
 const PECHE       = "#F9B95C"
 const INK         = "#2a2320"
 const INK_SOFT    = "#5a4f4a"

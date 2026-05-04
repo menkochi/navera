@@ -1165,9 +1165,9 @@ function ProfileSidebar({ section, setSection, child, onBack }) {
   const items = [
     { id: "core",       code: "01", label: "Core Data"         },
     { id: "slprofile",  code: "02", label: "S&L Profile"       },
-    { id: "universal",  code: "03", label: "Universal",  show: child.tiers.includes("universal")  },
-    { id: "targeted",   code: "04", label: "Targeted",   show: child.tiers.includes("targeted")   },
-    { id: "specialist", code: "05", label: "Specialist", show: child.tiers.includes("specialist") },
+    { id: "universal",  code: "03", label: "Intervention Level", show: child.tiers.includes("universal")  },
+    { id: "targeted",   code: "04", label: "Intervention Level", show: child.tiers.includes("targeted")   },
+    { id: "specialist", code: "05", label: "Intervention Level", show: child.tiers.includes("specialist") },
     { id: "parent",     code: "06", label: "Parent Portal"      },
     { id: "sessions",   code: "07", label: "Sessions Log"       },
     { id: "files",      code: "08", label: "Files & Videos"     },

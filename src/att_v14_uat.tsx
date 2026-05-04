@@ -1580,7 +1580,7 @@ function TargetList({ targets, barColor, dotColor, itemBg, placeholder, onAdd, o
         />
         <button onClick={add}
           className="mt-2 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-          style={{ ...F, background: barColor, borderRadius: 8 }}>
+          style={{ ...F, background: MENTHE, borderRadius: 8 }}>
           Add Target
         </button>
       </div>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabase";
+import DOMPurify from "dompurify";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -103,6 +104,7 @@ async function patchCaseloadTerm(termId, patch) {
   });
 }
 async function removeChildFromDB(supabaseChildId) {
+  await supabaseFetch(`targets_uat?child_id=eq.${supabaseChildId}`, { method: "DELETE" });
   await supabaseFetch(`sessions_uat?child_id=eq.${supabaseChildId}`, { method: "DELETE" });
   await supabaseFetch(`caseload_terms_uat?child_id=eq.${supabaseChildId}`, { method: "DELETE" });
   await supabaseFetch(`children_uat?id=eq.${supabaseChildId}`, { method: "DELETE" });
@@ -121,7 +123,7 @@ async function insertSession(childId, session) {
       type: session.type,
       notes: session.notes || null,
       ehcp_session: session.ehcp_session ?? false,
-      session_level: session.session_level || null,
+      session_level: (session.session_level && session.session_level !== "new") ? session.session_level : null,
     }),
   });
 }
@@ -207,6 +209,11 @@ function validateEhcpHours(form) {
   return null;
 }
 
+function interventionLevelLabel(value) {
+  const level = normaliseInterventionLevel(value);
+  return level.charAt(0).toUpperCase() + level.slice(1);
+}
+
 function normaliseInterventionLevel(value) {
   const levels = Array.isArray(value)
     ? value
@@ -215,11 +222,6 @@ function normaliseInterventionLevel(value) {
   if (clean.includes("specialist")) return "specialist";
   if (clean.includes("targeted")) return "targeted";
   return "universal";
-}
-
-function interventionLevelLabel(value) {
-  const level = normaliseInterventionLevel(value);
-  return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
 function mapRowToChild(row) {
@@ -266,7 +268,7 @@ function dedupeByLatestTerm(rows) {
     if (!id) return;
     const existing = map[id];
     if (!existing) { map[id] = r; return; }
-    if (r.term && !ord[r.term]) console.warn(`dedupeByLatestTerm: unrecognised term "${r.term}", treated as lowest priority`);
+    if (r.term && !ord[r.term]) { /* unrecognised term treated as lowest priority */ }
     const rOrd = ord[r.term] || 0;
     const eOrd = ord[existing.term] || 0;
     if (rOrd > eOrd || (rOrd === eOrd && (r.created_at || "") > (existing.created_at || ""))) {
@@ -682,7 +684,7 @@ function RichContent({ html, className = "" }) {
     <div
       className={`prose prose-sm max-w-none text-gray-700 leading-relaxed ${className}`}
       style={{ fontSize: "0.875rem" }}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
     />
   );
 }
@@ -748,6 +750,7 @@ function SLTAppInner() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
+    localStorage.removeItem("slt_pending");
     navigate("/login");
   }
 
@@ -1104,7 +1107,6 @@ function SLTAppInner() {
               showToast("Child added ✓");
               setAddModal(false);
             } catch (err) {
-              console.error("Add child failed:", err);
               const msg = err?.message || friendlyError(err);
               showToast(msg, "error");
               throw new Error(msg);
@@ -1261,7 +1263,7 @@ function ChildProfile({ child, section, setSection, updateChild, showToast }) {
         }));
         updateChild(child.id, () => ({ sessionsLogged: sessions }));
       })
-      .catch(err => { console.error("Failed to load sessions:", err); showToast("Failed to load sessions — please refresh", "error"); });
+      .catch(() => { showToast("Failed to load sessions — please refresh", "error"); });
   }, [child.id]);
 
   return (
@@ -1482,7 +1484,6 @@ function EditCoreDataModal({ child, onSave, onClose }) {
       setSaving(false);
       onSave({ ...form, ehcpHours });
     } catch (err) {
-      console.error("Core data save failed:", err);
       setError("Save failed — please try again");
       setSaving(false);
     }
@@ -2041,11 +2042,7 @@ function EhcpTrackerCard({ child, updateChild, showToast }) {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("caseload_terms_uat")
-        .update({ ehcp_hours: hrs })
-        .eq("id", child.supabaseTermId);
-      if (error) throw new Error(error.message);
+      await patchCaseloadTerm(child.supabaseTermId, { ehcp_hours: hrs });
       updateChild(child.id, () => ({ ehcpHours: hrs }));
       setEditing(false);
       showToast("EHCP hours updated ✓");
@@ -2188,10 +2185,10 @@ function SessionsSection({ child, updateChild, showToast }) {
   };
 
   const handleNewLevelChange = (level) => {
-    setNewSession(s => ({ ...s, session_level: level, soap: { ...s.soap, o: buildOHtml(level) } }));
+    setNewSession(s => ({ ...s, session_level: level, soap: { ...s.soap, o: isBlankHtml(s.soap.o) ? buildOHtml(level) : s.soap.o } }));
   };
   const handleEditLevelChange = (level) => {
-    setEditForm(f => ({ ...f, session_level: level, soap: { ...f.soap, o: buildOHtml(level) } }));
+    setEditForm(f => ({ ...f, session_level: level, soap: { ...f.soap, o: isBlankHtml(f.soap.o) ? buildOHtml(level) : f.soap.o } }));
   };
 
   const logSession = async () => {
@@ -2228,7 +2225,7 @@ function SessionsSection({ child, updateChild, showToast }) {
     if (!ok) return;
     try {
       const notes = combineSoap(editForm.soap);
-      await patchSession(editingId, { date: editForm.date, duration: +editForm.duration, type: editForm.type, notes: notes || null, ehcp_session: editForm.ehcp_session ?? false, session_level: editForm.session_level || null });
+      await patchSession(editingId, { date: editForm.date, duration: +editForm.duration, type: editForm.type, notes: notes || null, ehcp_session: editForm.ehcp_session ?? false, session_level: (editForm.session_level && editForm.session_level !== "new") ? editForm.session_level : null });
       updateChild(child.id, c => ({
         sessionsLogged: c.sessionsLogged.map(s => s.id === editingId ? { ...s, ...editForm, notes, duration: +editForm.duration } : s),
       }));

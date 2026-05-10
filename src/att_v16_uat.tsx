@@ -56,7 +56,8 @@ async function supabaseFetch(path, options = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Supabase error ${res.status}`);
+    const detail = [err.message, err.details, err.hint].filter(Boolean).join(" ");
+    throw new Error(detail || `Supabase error ${res.status}`);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -69,7 +70,7 @@ async function upsertChild(childData) {
   return supabaseFetch("children_uat", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify({ full_name: childData.name, dob: childData.dob || null }),
+    body: JSON.stringify({ full_name: childData.name.trim(), dob: childData.dob }),
   });
 }
 async function insertCaseloadTerm(childId, termData) {
@@ -78,18 +79,18 @@ async function insertCaseloadTerm(childId, termData) {
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
       child_id: childId,
-      term: termData.term || null,
-      year: termData.yearGroup || null,
-      class: termData.class || null,
-      name: termData.name,
-      ehcp: termData.ehcp,
-      ehcp_hours: termData.ehcpHours || null,
-      primary_area_of_need: termData.difficulties.join(", ") || null,
-      lead: termData.lead || null,
+      term: termData.term || "",
+      year: termData.yearGroup || "",
+      class: termData.class || "",
+      name: termData.name.trim(),
+      ehcp: !!termData.ehcp,
+      ehcp_hours: termData.ehcp ? Number(termData.ehcpHours || 0) : 0,
+      primary_area_of_need: termData.difficulties.join(", "),
+      lead: termData.lead || "",
       intervention_level: termData.tiers.join(", "),
-      frequency: termData.frequency || null,
-      rag_status: termData.ragStatus || null,
-      notes_for_teacher_universal_level_strategies: termData.notes || null,
+      frequency: termData.frequency || "",
+      rag_status: termData.ragStatus || "",
+      notes_for_teacher_universal_level_strategies: termData.notes || "",
     }),
   });
 }
@@ -182,10 +183,18 @@ function friendlyError(err) {
 }
 
 // ── Data helpers ──────────────────────────────────────────────────────────────
+function parseBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const normalised = String(value ?? "").trim().toLowerCase();
+  return ["true", "yes", "y", "1"].includes(normalised);
+}
+
 function mapRowToChild(row) {
   const ch = row.children_uat || {};
   const difficulties = (row.primary_area_of_need || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
   const tiers = (row.intervention_level || "universal").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  const ehcp = parseBoolean(row.ehcp);
   return {
     id: ch.id || row.child_id,
     supabaseTermId: row.id,
@@ -194,7 +203,7 @@ function mapRowToChild(row) {
     term: row.term || "",
     yearGroup: row.year || "",
     class: row.class || "",
-    ehcp: !!row.ehcp,
+    ehcp,
     ehcpHours: row.ehcp_hours || 0,
     lead: row.lead || "",
     difficulties,
@@ -202,7 +211,7 @@ function mapRowToChild(row) {
     ragStatus: row.rag_status || "",
     frequency: row.frequency || "",
     notes: row.notes_for_teacher_universal_level_strategies || "",
-    senStatus: row.ehcp ? "EHCP" : "SEN Support",
+    senStatus: ehcp ? "EHCP" : "SEN Support",
     currentTargets: { universal: [], targeted: [], specialist: [] },
     nextTargets: { targeted: [] },
     sessionsLogged: [],
@@ -701,7 +710,6 @@ function SLTAppInner() {
   const [toast, setToast]       = useState(null);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError]   = useState(null);
-  const [importModal, setImportModal] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -899,29 +907,20 @@ function SLTAppInner() {
               </button>
             </>
           ) : view === "caseload" ? (
-            <>
-              <button onClick={() => setImportModal(true)}
-                className="hidden sm:flex h-full px-5 items-center text-xs font-semibold uppercase tracking-wider gap-1.5"
-                style={{ ...FM, color: "rgba(255,255,255,0.65)", borderLeft: "1px solid rgba(255,255,255,0.14)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#fff"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}>
-                ↑ Import
-              </button>
-              <button onClick={() => setAddModal(true)}
-                className="h-full px-5 flex items-center text-xs font-semibold uppercase tracking-wider gap-1.5"
-                style={{ ...F, background: "rgba(255,255,255,0.95)", color: MENTHE_DEEP, border: "none", borderRadius: 6, alignSelf: "center", height: 32, marginRight: 8 }}
-                onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; e.currentTarget.style.boxShadow = "inset 0 -2px 0 rgba(0,0,0,0.12)"; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = ""; e.currentTarget.style.boxShadow = ""; }}>
-                + Add Child
-              </button>
-            </>
-          ) : view === "approvals" ? null : (
-            <button onClick={() => setImportModal(true)}
+            <button onClick={() => setAddModal(true)}
               className="h-full px-5 flex items-center text-xs font-semibold uppercase tracking-wider gap-1.5"
               style={{ ...F, background: "rgba(255,255,255,0.95)", color: MENTHE_DEEP, border: "none", borderRadius: 6, alignSelf: "center", height: 32, marginRight: 8 }}
               onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; e.currentTarget.style.boxShadow = "inset 0 -2px 0 rgba(0,0,0,0.12)"; }}
               onMouseLeave={e => { e.currentTarget.style.filter = ""; e.currentTarget.style.boxShadow = ""; }}>
-              ↑ Import
+              + Add Child
+            </button>
+          ) : view === "approvals" ? null : (
+            <button onClick={() => setAddModal(true)}
+              className="h-full px-5 flex items-center text-xs font-semibold uppercase tracking-wider gap-1.5"
+              style={{ ...F, background: "rgba(255,255,255,0.95)", color: MENTHE_DEEP, border: "none", borderRadius: 6, alignSelf: "center", height: 32, marginRight: 8 }}
+              onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; e.currentTarget.style.boxShadow = "inset 0 -2px 0 rgba(0,0,0,0.12)"; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = ""; e.currentTarget.style.boxShadow = ""; }}>
+              + Add Child
             </button>
           )}
           <button onClick={handleLogout}
@@ -978,7 +977,7 @@ function SLTAppInner() {
 
           {view === "dashboard" && (
             <Dashboard children={children} stats={stats} onOpen={openProfile}
-              onImport={() => setImportModal(true)} onAdd={() => setAddModal(true)} />
+              onAdd={() => setAddModal(true)} />
           )}
 
           {view === "caseload" && (
@@ -1059,7 +1058,6 @@ function SLTAppInner() {
       )}
 
       {/* Modals */}
-      {importModal && <ImportModal onClose={() => setImportModal(false)} setChildren={setChildren} showToast={showToast} />}
       {addModal && (
         <AddChildModal
           onAdd={async (formData) => {
@@ -1073,7 +1071,12 @@ function SLTAppInner() {
               setChildren(dedupeByLatestTerm(rows).map(mapRowToChild));
               showToast("Child added ✓");
               setAddModal(false);
-            } catch (err) { showToast(friendlyError(err), "error"); }
+            } catch (err) {
+              console.error("Add child failed:", err);
+              const msg = err?.message || friendlyError(err);
+              showToast(msg, "error");
+              throw new Error(msg);
+            }
           }}
           onClose={() => setAddModal(false)}
         />
@@ -2369,7 +2372,7 @@ function FilesSection({ child, updateChild, showToast }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ children, stats, onOpen, onImport, onAdd }) {
+function Dashboard({ children, stats, onOpen, onAdd }) {
   const season = getCurrentSeason();
   return (
     <div className="space-y-4">
@@ -2391,14 +2394,9 @@ function Dashboard({ children, stats, onOpen, onImport, onAdd }) {
             </p>
             {stats.total === 0 && (
               <div className="mt-4 flex gap-2 flex-wrap">
-                <button onClick={onImport}
-                  className="px-4 py-2 text-sm font-semibold"
-                  style={{ ...F, background: MENTHE, color: "#fff", border: "none", borderRadius: 8 }}>
-                  ↑ Import caseload
-                </button>
                 <button onClick={onAdd}
                   className="px-4 py-2 text-sm font-semibold"
-                  style={{ ...F, background: SAND_SURFACE, color: MENTHE_DEEP, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+                  style={{ ...F, background: MENTHE, color: "#fff", border: "none", borderRadius: 8 }}>
                   + Add child
                 </button>
               </div>
@@ -2433,7 +2431,7 @@ function Dashboard({ children, stats, onOpen, onImport, onAdd }) {
         {children.length === 0 ? (
           <div className="p-8 text-center" style={{ border: `1px solid ${BORDER}`, borderRadius: 12, background: SURFACE }}>
             <p className="text-sm font-semibold mb-1" style={{ ...FM, color: INK }}>No children on your caseload yet</p>
-            <p className="text-xs" style={{ color: MID, ...FM }}>Use the buttons above to import or add your first child</p>
+            <p className="text-xs" style={{ color: MID, ...FM }}>Use the button above to add your first child</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0"
@@ -2641,6 +2639,7 @@ function AddChildModal({ onAdd, onClose }) {
   const submit = async () => {
     if (saving) return;
     if (!form.name.trim()) { setError("Name is required"); return; }
+    if (!form.dob) { setError("Date of birth is required"); return; }
     if (form.tiers.length === 0) { setError("Please select at least one support tier"); return; }
     // Bug 4 — validate EHCP hours before confirm
     if (form.ehcp && (!form.ehcpHours || form.ehcpHours <= 0)) {
@@ -2649,12 +2648,17 @@ function AddChildModal({ onAdd, onClose }) {
     const ok = await confirm(`Add ${form.name.trim()} to your caseload?`, { label: "Add child" });
     if (!ok) return;
     setError(""); setSaving(true);
-    await onAdd({ ...form,
-      currentTargets: { universal: [], targeted: [], specialist: [] }, nextTargets: { targeted: [] },
-      sessionsLogged: [], progress: { universal: 0, targeted: 0, specialist: 0 },
-      approvedResources: [], pendingResources: [], videos: [],
-      gender: "", ethnicity: "", language: "", reviewDate: "", additionalNeeds: "", extraFields: {} });
-    setSaving(false);
+    try {
+      await onAdd({ ...form,
+        currentTargets: { universal: [], targeted: [], specialist: [] }, nextTargets: { targeted: [] },
+        sessionsLogged: [], progress: { universal: 0, targeted: 0, specialist: 0 },
+        approvedResources: [], pendingResources: [], videos: [],
+        gender: "", ethnicity: "", language: "", reviewDate: "", additionalNeeds: "", extraFields: {} });
+    } catch (err) {
+      setError(err?.message || friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const TIER_CFG = {
@@ -2758,227 +2762,6 @@ function AddChildModal({ onAdd, onClose }) {
             <PBtn onClick={submit} disabled={saving} className="flex-1 py-3">{saving ? "Saving…" : "Add Child"}</PBtn>
             <SBtn onClick={onClose} className="flex-1 py-3">Cancel</SBtn>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Import Modal ──────────────────────────────────────────────────────────────
-function ImportModal({ onClose, setChildren, showToast }) {
-  const [status, setStatus] = useState("");
-  const [step, setStep] = useState("upload");
-  const [preview, setPreview] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const confirm = useConfirm();
-
-  const loadXLSX = () => new Promise((resolve, reject) => {
-    if (window.XLSX) { resolve(window.XLSX); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => resolve(window.XLSX);
-    s.onerror = () => reject(new Error("Failed to load XLSX library"));
-    document.head.appendChild(s);
-  });
-
-  // Bug 9 — valid tier whitelist
-  const VALID_TIERS = ["universal", "targeted", "specialist"];
-
-  const handleFile = async (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    setStatus("Reading file…"); setStep("upload");
-    try {
-      const XLSX = await loadXLSX();
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      if (!rows.length) { setStatus("No data found in file."); return; }
-      const find = (...keys) => Object.keys(rows[0]).find(h => keys.some(k => h.toLowerCase().includes(k))) || "";
-      const nameCol = find("name","full_name"); const yearCol = find("year");
-      const classCol = find("class"); const dobCol = find("dob","birth");
-      const ehcpCol = find("ehcp"); const leadCol = find("lead");
-      const tierCol = find("tier","intervention","level"); const diffCol = find("area","need","difficulty","primary");
-      const notesCol = find("notes"); const termCol = find("term");
-      const ragCol = find("rag"); const freqCol = find("freq");
-      const mapped = rows.map(r => {
-        const name = String(r[nameCol] || "").trim();
-        if (!name || /^child\s*\d+$/i.test(name)) return null;
-
-        // Bug 10 — validate DOB is a real date
-        const dobRaw = r[dobCol] ? String(r[dobCol]).trim() : "";
-        const dobDate = dobRaw ? new Date(dobRaw) : null;
-        const dobYear = dobDate?.getFullYear();
-        const dob = (dobDate && !isNaN(dobDate.getTime()) && dobYear >= 1990 && dobYear <= new Date().getFullYear()) ? dobRaw : "";
-
-        // Bug 9 — clamp tiers to whitelist
-        const parsedTiers = String(r[tierCol] || "universal").toLowerCase().split(/[,/]/).map(s => s.trim()).filter(Boolean);
-        const tiers = parsedTiers.filter(t => VALID_TIERS.includes(t));
-
-        return {
-          name, dob,
-          yearGroup: String(r[yearCol] || "").trim(), class: String(r[classCol] || "").trim(),
-          ehcp: ["yes","true","1","y"].includes(String(r[ehcpCol] || "").toLowerCase().trim()),
-          lead: String(r[leadCol] || "").trim(),
-          tiers: tiers.length ? tiers : ["universal"],
-          difficulties: String(r[diffCol] || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean),
-          notes: String(r[notesCol] || "").trim(), term: String(r[termCol] || "").trim(),
-          ragStatus: String(r[ragCol] || "").trim(), frequency: String(r[freqCol] || "").trim(),
-          currentTargets: { universal: [], targeted: [], specialist: [] }, nextTargets: { targeted: [] },
-          sessionsLogged: [], progress: { universal: 0, targeted: 0, specialist: 0 },
-          approvedResources: [], pendingResources: [], videos: [],
-          gender: "", ethnicity: "", language: "", reviewDate: "", additionalNeeds: "", extraFields: {},
-        };
-      }).filter(Boolean);
-
-      // Bug 8 — explicit post-parse name validation
-      const valid = mapped.filter(c => c.name && c.name !== "undefined" && c.name.trim().length >= 2);
-      const skipped = mapped.length - valid.length;
-      if (skipped > 0) setStatus(`${skipped} row(s) skipped — name not recognised. Check headers include "Name" or "Full Name".`);
-      if (!valid.length) { setStatus("No valid children found. Check column headers."); return; }
-      setPreview(valid); setStep("preview"); if (!skipped) setStatus("");
-    } catch (err) { console.error(err); setStatus(friendlyError(err)); }
-  };
-
-  const confirmImport = async () => {
-    if (!preview) return;
-    const confirmed = await confirm(`Import ${preview.length} ${preview.length === 1 ? "child" : "children"} into your caseload?`, { label: "Import" });
-    if (!confirmed) return;
-    setSaving(true); let ok = 0; let failed = 0; const failedNames = [];
-    for (const child of preview) {
-      try {
-        // Bug 2 — bounds-checked
-        const childRows = await upsertChild(child);
-        if (!childRows?.length) throw new Error("Could not save — please try again.");
-        const childRow = childRows[0];
-        await insertCaseloadTerm(childRow.id, child);
-        for (const level of ["universal", "targeted", "specialist"]) {
-          for (const item of (child.currentTargets[level] || [])) {
-            const text = typeof item === "string" ? item : item.text;
-            if (text) await insertTarget(childRow.id, level, text);
-          }
-        }
-        ok++;
-      } catch (err) { console.error(`Failed for ${child.name}:`, err); failed++; failedNames.push(child.name); }
-    }
-    try {
-      const rows = await fetchCaseload();
-      if (rows && rows.length > 0) {
-        const dedupedRows = dedupeByLatestTerm(rows);
-        const childIds = dedupedRows.map(r => (r.children_uat || {}).id || r.child_id).filter(Boolean);
-        const targetRows = childIds.length ? await fetchTargetsForChildren(childIds) : [];
-        const byChild = {};
-        targetRows.forEach(t => {
-          if (!byChild[t.child_id]) byChild[t.child_id] = { universal: [], targeted: [], specialist: [] };
-          if (byChild[t.child_id][t.level]) byChild[t.child_id][t.level].push({
-            id: t.id,
-            text: t.target,
-            status: t.status || "in_progress",
-            date_added: t.date_added || null,
-            date_updated: t.date_updated || null,
-            cleared: t.cleared ?? false,
-          });
-        });
-        setChildren(dedupedRows.map(row => {
-          const childId = (row.children_uat || {}).id || row.child_id;
-          return { ...mapRowToChild(row), currentTargets: byChild[childId] || { universal: [], targeted: [], specialist: [] } };
-        }));
-      }
-    } catch (err) { showToast("Import saved but refresh failed — reload the page", "error"); console.error(err); }
-    setSaving(false);
-    showToast(`✓ Imported ${ok} children${failed ? ` — ${failed} failed: ${failedNames.join(", ")}` : ""}`);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" style={F}>
-      <div className="bg-white w-full sm:max-w-2xl shadow-2xl max-h-[92vh] flex flex-col sm:mx-4"
-        style={{ border: `3px solid ${INK}` }}>
-        {/* Black header */}
-        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ background: INK }}>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 flex items-center justify-center font-bold text-xs flex-shrink-0"
-              style={{ background: YELLOW, color: INK, ...FM }}>↑</div>
-            <div>
-              <h3 className="font-bold text-sm uppercase tracking-widest" style={{ ...FM, color: YELLOW }}>Import Caseload</h3>
-              <p className="text-xs" style={{ ...FM, color: "#647981" }}>Upload Excel or CSV — saves directly to Supabase</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center text-lg font-bold"
-            style={{ color: "#647981" }}
-            onMouseEnter={e => { e.currentTarget.style.color = YELLOW; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "#647981"; }}>×</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
-          {step === "upload" && (
-            <div>
-              <label className="flex flex-col items-center p-10 text-center cursor-pointer transition-all"
-                style={{ border: `2px dashed ${BORDER}`, background: "#faf7f4" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.background = YELLOW; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.background = "#faf7f4"; }}>
-                <p className="text-4xl mb-3">📊</p>
-                <p className="font-semibold mb-1" style={{ ...FM, color: INK }}>Choose your caseload file</p>
-                <p className="text-xs mb-4" style={{ ...FM, color: MID }}>Supports .xlsx, .xls, .csv</p>
-                <span className="px-6 py-2.5 text-sm font-semibold"
-                  style={{ ...FM, background: INK, color: YELLOW, border: `2px solid ${INK}` }}>
-                  Choose File
-                </span>
-                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} className="hidden" />
-              </label>
-              {status && (
-                <div className="mt-4 p-4" style={{ background: "rgba(255,255,255,0.72)", border: "2px solid #78B9C7" }}>
-                  <p className="text-sm font-medium" style={{ ...FM, color: "#1D4ED8" }}>{status}</p>
-                </div>
-              )}
-            </div>
-          )}
-          {step === "preview" && preview && (
-            <div className="space-y-4">
-              <div className="p-4" style={{ background: MENTHE, border: `2px solid ${LAGUNE}` }}>
-                <p className="font-semibold text-sm" style={{ ...FM, color: "#2a2320" }}>✓ {preview.length} children ready to import</p>
-                {status && <p className="text-xs mt-1" style={{ ...FM, color: NECTARINE }}>{status}</p>}
-              </div>
-              <div className="overflow-hidden" style={{ border: `2px solid ${INK}` }}>
-                <div className="px-4 py-2 text-xs font-semibold uppercase tracking-widest" style={{ background: INK, color: YELLOW, ...FM }}>
-                  Preview — first 5
-                </div>
-                <table className="w-full text-xs">
-                  <thead style={{ borderBottom: `1px solid ${BORDER}` }}>
-                    <tr>
-                      {["Name","Year","Tiers","Lead","EHCP"].map(h => (
-                        <th key={h} className="text-left px-4 py-2.5 font-semibold uppercase tracking-wider"
-                          style={{ ...FM, color: MID }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.slice(0, 5).map((c, i) => (
-                      <tr key={i} style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : "none" }}>
-                        <td className="px-4 py-2.5 font-bold" style={{ ...FM, color: INK }}>{c.name}</td>
-                        <td className="px-4 py-2.5" style={{ ...FM, color: MID }}>{c.yearGroup}</td>
-                        <td className="px-4 py-2.5"><div className="flex gap-1">{c.tiers.map(t => <TierPill key={t} tier={t} />)}</div></td>
-                        <td className="px-4 py-2.5" style={{ ...FM, color: MID }}>{c.lead || "—"}</td>
-                        <td className="px-4 py-2.5">{c.ehcp ? <Chip className="bg-violet-100 text-violet-900">EHCP</Chip> : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 flex gap-3 flex-shrink-0" style={{ borderTop: `2px solid ${BORDER}` }}>
-          {step === "preview" && (
-            <PBtn onClick={confirmImport} disabled={saving} className="flex-1 py-3">
-              {saving ? "Saving to Supabase…" : `✓ Import ${preview?.length} Children`}
-            </PBtn>
-          )}
-          {step === "preview" && (
-            <SBtn onClick={() => { setStep("upload"); setPreview(null); setStatus(""); }} className="py-3">← Re-upload</SBtn>
-          )}
-          <SBtn onClick={onClose} className={`${step === "preview" ? "" : "flex-1"} py-3`}>Cancel</SBtn>
         </div>
       </div>
     </div>

@@ -190,6 +190,22 @@ function parseBoolean(value) {
   return ["true", "yes", "y", "1"].includes(normalised);
 }
 
+function normaliseEhcpHoursInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return String(Number(digits));
+}
+
+function validateEhcpHours(form) {
+  if (!form.ehcp) return null;
+  if (form.ehcpHours === "") return "EHCP annual hours must be between 0 and 99";
+  const hours = Number(form.ehcpHours);
+  if (!Number.isInteger(hours) || hours < 0 || hours > 99) {
+    return "EHCP annual hours must be between 0 and 99";
+  }
+  return null;
+}
+
 function mapRowToChild(row) {
   const ch = row.children_uat || {};
   const difficulties = (row.primary_area_of_need || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -1324,7 +1340,7 @@ function CoreDataSection({ child, updateChild, showToast }) {
       additionalNeeds: form.additionalNeeds,
       notes:           form.notes,
       ehcp:            form.ehcp,
-      ehcpHours:       form.ehcpHours,
+      ehcpHours:       form.ehcp ? Number(form.ehcpHours || 0) : 0,
       difficulties:    form.difficulties,
       senStatus:       form.ehcp ? "EHCP" : "SEN Support",
     }));
@@ -1406,7 +1422,7 @@ function EditCoreDataModal({ child, onSave, onClose }) {
     additionalNeeds: child.additionalNeeds || "",
     notes:           child.notes           || "",
     ehcp:            !!child.ehcp,
-    ehcpHours:       child.ehcpHours       || 0,
+    ehcpHours:       String(child.ehcpHours ?? 0),
     difficulties:    child.difficulties    || [],
   });
   const [saving, setSaving] = useState(false);
@@ -1422,9 +1438,9 @@ function EditCoreDataModal({ child, onSave, onClose }) {
 
   const submit = async () => {
     if (saving) return;
-    if (form.ehcp && (!form.ehcpHours || form.ehcpHours <= 0)) {
-      setError("EHCP annual hours must be greater than 0"); return;
-    }
+    const ehcpHoursError = validateEhcpHours(form);
+    if (ehcpHoursError) { setError(ehcpHoursError); return; }
+    const ehcpHours = form.ehcp ? Number(form.ehcpHours || 0) : 0;
     setError(""); setSaving(true);
     try {
       await patchCaseloadTerm(child.supabaseTermId, {
@@ -1440,11 +1456,11 @@ function EditCoreDataModal({ child, onSave, onClose }) {
         additional_needs:                             form.additionalNeeds  || null,
         notes_for_teacher_universal_level_strategies: form.notes            || null,
         ehcp:                                         form.ehcp,
-        ehcp_hours:                                   form.ehcp ? (form.ehcpHours || null) : null,
+        ehcp_hours:                                   ehcpHours,
         primary_area_of_need:                         form.difficulties.join(", ") || null,
       });
       setSaving(false);
-      onSave(form);
+      onSave({ ...form, ehcpHours });
     } catch (err) {
       console.error("Core data save failed:", err);
       setError("Save failed — please try again");
@@ -1519,8 +1535,8 @@ function EditCoreDataModal({ child, onSave, onClose }) {
                 Has EHCP
               </label>
               {form.ehcp && (
-                <SInput type="number" value={form.ehcpHours} onChange={e => f("ehcpHours", +e.target.value)}
-                  placeholder="Annual hours" className="flex-1" min="1" />
+                <SInput value={form.ehcpHours} onChange={e => f("ehcpHours", normaliseEhcpHoursInput(e.target.value))}
+                  placeholder="Annual hours" className="flex-1" />
               )}
             </div>
 
@@ -2627,7 +2643,7 @@ function Approvals({ queue, setQueue, setChildren, showToast }) {
 function AddChildModal({ onAdd, onClose }) {
   const [form, setForm] = useState({
     name: "", yearGroup: "Year 1", dob: "", tiers: [], difficulties: [],
-    ehcp: false, ehcpHours: 0, notes: "", class: "", lead: "",
+    ehcp: false, ehcpHours: "0", notes: "", class: "", lead: "",
     senStatus: "", term: "", ragStatus: "", frequency: "",
   });
   const [saving, setSaving] = useState(false);
@@ -2641,15 +2657,13 @@ function AddChildModal({ onAdd, onClose }) {
     if (!form.name.trim()) { setError("Name is required"); return; }
     if (!form.dob) { setError("Date of birth is required"); return; }
     if (form.tiers.length === 0) { setError("Please select at least one support tier"); return; }
-    // Bug 4 — validate EHCP hours before confirm
-    if (form.ehcp && (!form.ehcpHours || form.ehcpHours <= 0)) {
-      setError("EHCP annual hours must be greater than 0"); return;
-    }
+    const ehcpHoursError = validateEhcpHours(form);
+    if (ehcpHoursError) { setError(ehcpHoursError); return; }
     const ok = await confirm(`Add ${form.name.trim()} to your caseload?`, { label: "Add child" });
     if (!ok) return;
     setError(""); setSaving(true);
     try {
-      await onAdd({ ...form,
+      await onAdd({ ...form, ehcpHours: form.ehcp ? Number(form.ehcpHours || 0) : 0,
         currentTargets: { universal: [], targeted: [], specialist: [] }, nextTargets: { targeted: [] },
         sessionsLogged: [], progress: { universal: 0, targeted: 0, specialist: 0 },
         approvedResources: [], pendingResources: [], videos: [],
@@ -2747,8 +2761,8 @@ function AddChildModal({ onAdd, onClose }) {
                 Has EHCP
               </label>
               {form.ehcp && (
-                <SInput type="number" value={form.ehcpHours} onChange={e => f("ehcpHours", +e.target.value)}
-                  placeholder="Annual hours" className="flex-1" min="1" />
+                <SInput value={form.ehcpHours} onChange={e => f("ehcpHours", normaliseEhcpHoursInput(e.target.value))}
+                  placeholder="Annual hours" className="flex-1" />
               )}
             </div>
 

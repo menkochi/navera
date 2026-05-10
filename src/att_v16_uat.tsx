@@ -2529,24 +2529,44 @@ function Dashboard({ children, stats, onOpen, onAdd }) {
 
 // ── Caseload ──────────────────────────────────────────────────────────────────
 function Caseload({ children, onOpen, onDelete }) {
-  const [search, setSearch] = useState("");
-  const [filterTier, setFilterTier] = useState("all");
+  const [filterName,  setFilterName]  = useState("");
+  const [filterYear,  setFilterYear]  = useState("all");
+  const [filterClass, setFilterClass] = useState("all");
+  const [filterTier,  setFilterTier]  = useState("all");
+  const [filterLead,  setFilterLead]  = useState("all");
+  const [filterTerm,  setFilterTerm]  = useState("all");
+  const [filterRag,   setFilterRag]   = useState("all");
+  const [filterEhcp,  setFilterEhcp]  = useState("all");
+
+  const years   = [...new Set(children.map(c => c.yearGroup).filter(Boolean))].sort();
+  const classes = [...new Set(children.map(c => c.class).filter(Boolean))].sort();
+  const leads   = [...new Set(children.map(c => c.lead).filter(Boolean))].sort();
+
   const filtered = children.filter(c =>
-    (filterTier === "all" || c.tiers.includes(filterTier)) &&
-    (!search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.class || "").toLowerCase().includes(search.toLowerCase()))
+    (!filterName  || (c.name || "").toLowerCase().includes(filterName.toLowerCase())) &&
+    (filterTier  === "all" || c.tiers.includes(filterTier)) &&
+    (filterYear  === "all" || c.yearGroup  === filterYear)  &&
+    (filterClass === "all" || c.class      === filterClass) &&
+    (filterLead  === "all" || c.lead       === filterLead)  &&
+    (filterTerm  === "all" || c.term       === filterTerm)  &&
+    (filterRag   === "all" || c.ragStatus  === filterRag)   &&
+    (filterEhcp  === "all" || (filterEhcp === "yes" ? c.ehcp : !c.ehcp))
   );
-  const empty = <p className="text-center text-gray-400 py-10 text-sm font-medium">{children.length === 0 ? "No children on caseload yet." : "No children match your search."}</p>;
+  const anyActive = filterName || filterYear !== "all" || filterClass !== "all" ||
+    filterTier !== "all" || filterLead !== "all" || filterTerm !== "all" ||
+    filterRag !== "all" || filterEhcp !== "all";
+  const clearAll = () => { setFilterName(""); setFilterYear("all"); setFilterClass("all"); setFilterTier("all"); setFilterLead("all"); setFilterTerm("all"); setFilterRag("all"); setFilterEhcp("all"); };
+
+  const empty = <p className="text-center text-gray-400 py-10 text-sm font-medium">{children.length === 0 ? "No children on caseload yet." : "No children match your filters."}</p>;
+
+  const hdrInput = { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "#fff", borderRadius: 4, padding: "3px 6px", fontSize: "0.65rem", width: "100%", outline: "none", fontFamily: "Poppins, sans-serif" };
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <SInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or class…" className="flex-1" />
-        <SSelect value={filterTier} onChange={e => setFilterTier(e.target.value)} className="w-36">
-          <option value="all">All tiers</option>
-          <option value="universal">Universal</option>
-          <option value="targeted">Targeted</option>
-          <option value="specialist">Specialist</option>
-        </SSelect>
+      {/* Mobile: name filter only */}
+      <div className="sm:hidden">
+        <SInput value={filterName} onChange={e => setFilterName(e.target.value)} placeholder="Search by name…" />
+        {anyActive && <button onClick={clearAll} className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "rgba(215,137,127,0.13)", color: "#8f3e36", border: "1px solid rgba(215,137,127,0.38)", fontFamily: "Poppins, sans-serif" }}>✕ Clear filters</button>}
       </div>
 
       {/* Desktop table — Template 02 surface */}
@@ -2560,6 +2580,66 @@ function Caseload({ children, onOpen, onDelete }) {
                   {h}
                 </th>
               ))}
+            </tr>
+            <tr style={{ background: "rgba(0,0,0,0.18)" }}>
+              <th className="px-2 py-1.5">
+                <input value={filterName} onChange={e => setFilterName(e.target.value)} placeholder="Filter…" style={hdrInput} />
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterClass} onChange={e => setFilterClass(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  {classes.map(cl => <option key={cl} value={cl}>{cl}</option>)}
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterTier} onChange={e => setFilterTier(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  <option value="universal">Universal</option>
+                  <option value="targeted">Targeted</option>
+                  <option value="specialist">Specialist</option>
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterLead} onChange={e => setFilterLead(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  {leads.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterTerm} onChange={e => setFilterTerm(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  {["Autumn 1","Autumn 2","Spring 1","Spring 2","Summer 1","Summer 2"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterRag} onChange={e => setFilterRag(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  <option value="Green">Green</option>
+                  <option value="Amber">Amber</option>
+                  <option value="Red">Red</option>
+                </select>
+              </th>
+              <th className="px-2 py-1.5">
+                <select value={filterEhcp} onChange={e => setFilterEhcp(e.target.value)} style={hdrInput}>
+                  <option value="all">All</option>
+                  <option value="yes">EHCP</option>
+                  <option value="no">No EHCP</option>
+                </select>
+              </th>
+              <th className="px-2 py-1.5 text-center">
+                {anyActive && (
+                  <button onClick={clearAll} title="Clear all filters"
+                    style={{ background: "rgba(215,137,127,0.25)", color: "#ffccc7", border: "1px solid rgba(215,137,127,0.4)", borderRadius: 4, padding: "3px 7px", fontSize: "0.65rem", cursor: "pointer", fontFamily: "Poppins, sans-serif" }}>
+                    ✕
+                  </button>
+                )}
+              </th>
             </tr>
           </thead>
           <tbody>

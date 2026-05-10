@@ -74,6 +74,7 @@ async function upsertChild(childData) {
   });
 }
 async function insertCaseloadTerm(childId, termData) {
+  const interventionLevel = normaliseInterventionLevel(termData.tiers);
   return supabaseFetch("caseload_terms_uat", {
     method: "POST",
     headers: { Prefer: "return=representation" },
@@ -87,7 +88,7 @@ async function insertCaseloadTerm(childId, termData) {
       ehcp_hours: termData.ehcp ? Number(termData.ehcpHours || 0) : 0,
       primary_area_of_need: termData.difficulties.join(", "),
       lead: termData.lead || "",
-      intervention_level: termData.tiers.join(", "),
+      intervention_level: interventionLevel,
       frequency: termData.frequency || "",
       rag_status: termData.ragStatus || "",
       notes_for_teacher_universal_level_strategies: termData.notes || "",
@@ -206,10 +207,25 @@ function validateEhcpHours(form) {
   return null;
 }
 
+function normaliseInterventionLevel(value) {
+  const levels = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[,/]/);
+  const clean = levels.map(level => String(level).trim().toLowerCase()).filter(Boolean);
+  if (clean.includes("specialist")) return "specialist";
+  if (clean.includes("targeted")) return "targeted";
+  return "universal";
+}
+
+function interventionLevelLabel(value) {
+  const level = normaliseInterventionLevel(value);
+  return level.charAt(0).toUpperCase() + level.slice(1);
+}
+
 function mapRowToChild(row) {
   const ch = row.children_uat || {};
   const difficulties = (row.primary_area_of_need || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-  const tiers = (row.intervention_level || "universal").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  const interventionLevel = normaliseInterventionLevel(row.intervention_level);
   const ehcp = parseBoolean(row.ehcp);
   return {
     id: ch.id || row.child_id,
@@ -223,7 +239,7 @@ function mapRowToChild(row) {
     ehcpHours: row.ehcp_hours || 0,
     lead: row.lead || "",
     difficulties,
-    tiers: tiers.length ? tiers : ["universal"],
+    tiers: [interventionLevel],
     ragStatus: row.rag_status || "",
     frequency: row.frequency || "",
     notes: row.notes_for_teacher_universal_level_strategies || "",
@@ -1341,6 +1357,7 @@ function CoreDataSection({ child, updateChild, showToast }) {
       notes:           form.notes,
       ehcp:            form.ehcp,
       ehcpHours:       form.ehcp ? Number(form.ehcpHours || 0) : 0,
+      tiers:           [form.interventionLevel],
       difficulties:    form.difficulties,
       senStatus:       form.ehcp ? "EHCP" : "SEN Support",
     }));
@@ -1373,6 +1390,7 @@ function CoreDataSection({ child, updateChild, showToast }) {
               <Field label="Class"         value={child.class} />
               <Field label="Gender"        value={child.gender} />
               <Field label="SEN stage"     value={child.senStatus} />
+              <Field label="Intervention"  value={interventionLevelLabel(child.tiers)} />
             </div>
           </div>
         </Card>
@@ -1423,6 +1441,7 @@ function EditCoreDataModal({ child, onSave, onClose }) {
     notes:           child.notes           || "",
     ehcp:            !!child.ehcp,
     ehcpHours:       String(child.ehcpHours ?? 0),
+    interventionLevel: normaliseInterventionLevel(child.tiers),
     difficulties:    child.difficulties    || [],
   });
   const [saving, setSaving] = useState(false);
@@ -1457,6 +1476,7 @@ function EditCoreDataModal({ child, onSave, onClose }) {
         notes_for_teacher_universal_level_strategies: form.notes            || null,
         ehcp:                                         form.ehcp,
         ehcp_hours:                                   ehcpHours,
+        intervention_level:                            form.interventionLevel,
         primary_area_of_need:                         form.difficulties.join(", ") || null,
       });
       setSaving(false);
@@ -1528,6 +1548,24 @@ function EditCoreDataModal({ child, onSave, onClose }) {
             </div>
 
             <SInput placeholder="Additional needs" value={form.additionalNeeds} onChange={e => f("additionalNeeds", e.target.value)} maxLength={200} />
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ ...FM, color: MID }}>Intervention Level</p>
+              <div className="flex gap-2">
+                {["universal","targeted","specialist"].map(level => {
+                  const active = form.interventionLevel === level;
+                  return (
+                    <button key={level} onClick={() => f("interventionLevel", level)}
+                      className="flex-1 py-2.5 text-xs font-semibold transition-all uppercase tracking-wider"
+                      style={active
+                        ? { ...FM, background: YELLOW, color: INK, border: `2px solid ${INK}` }
+                        : { ...FM, background: "#faf7f4", color: MID, border: `2px solid ${BORDER}` }}>
+                      {level}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="flex gap-3 items-center">
               <label className="flex items-center gap-2 text-sm cursor-pointer font-medium" style={{ ...FM, color: INK }}>
@@ -2656,7 +2694,7 @@ function AddChildModal({ onAdd, onClose }) {
     if (saving) return;
     if (!form.name.trim()) { setError("Name is required"); return; }
     if (!form.dob) { setError("Date of birth is required"); return; }
-    if (form.tiers.length === 0) { setError("Please select at least one support tier"); return; }
+    if (form.tiers.length === 0) { setError("Please select an intervention level"); return; }
     const ehcpHoursError = validateEhcpHours(form);
     if (ehcpHoursError) { setError(ehcpHoursError); return; }
     const ok = await confirm(`Add ${form.name.trim()} to your caseload?`, { label: "Add child" });
@@ -2720,12 +2758,12 @@ function AddChildModal({ onAdd, onClose }) {
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ ...FM, color: MID }}>Support Tiers *</p>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ ...FM, color: MID }}>Intervention Level *</p>
               <div className="flex gap-2">
                 {["universal","targeted","specialist"].map(t => {
-                  const active = form.tiers.includes(t);
+                  const active = form.tiers[0] === t;
                   return (
-                    <button key={t} onClick={() => toggleArr("tiers", t)}
+                    <button key={t} onClick={() => f("tiers", [t])}
                       className="flex-1 py-2.5 text-xs font-semibold transition-all uppercase tracking-wider"
                       style={active
                         ? { ...FM, background: YELLOW, color: INK, border: `2px solid ${INK}` }
